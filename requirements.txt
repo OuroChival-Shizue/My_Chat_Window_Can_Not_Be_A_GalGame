@@ -1,0 +1,8 @@
+# Core runtime
+Pillow>=10.0.0,<11.0.0
+keyboard>=0.13.5,<0.14
+pyperclip>=1.8.2,<2.0
+pywin32>=306
+
+# GUI configurator
+PyQt6>=6.6,<6.8

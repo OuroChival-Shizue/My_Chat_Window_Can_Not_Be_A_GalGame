@@ -1,0 +1,47 @@
+{
+    "meta": {
+        "name": "新垣绫濑",
+        "id": "yuraa"
+    },
+    "assets": {
+        "dialog_box": "ayase_box_1.png"
+    },
+    "style": {
+        "text_color": [
+            255,
+            255,
+            255
+        ],
+        "name_color": [
+            253,
+            145,
+            175
+        ],
+        "font_size": 46,
+        "name_font_size": 46
+    },
+    "layout": {
+        "stand_pos": [
+            615,
+            36
+        ],
+        "box_pos": [
+            0,
+            0
+        ],
+        "text_area": [
+            399,
+            1120,
+            2149,
+            1330
+        ],
+        "name_pos": [
+            693,
+            999
+        ],
+        "stand_scale": 1.773,
+        "stand_on_top": false,
+        "current_portrait": "ayase_portrait_1.png",
+        "current_background": "ayase_bg_1.jpg"
+    }
+}

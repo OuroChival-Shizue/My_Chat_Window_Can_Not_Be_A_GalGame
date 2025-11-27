@@ -1,0 +1,17 @@
+{
+    "current_character": "yuraa",
+    "global_hotkeys": {
+        "copy_to_clipboard": "ctrl+shift+c",
+        "show_character": "ctrl+shift+v"
+    },
+    "target_apps": [
+        "QQ",
+        "微信",
+        "WeChat",
+        "Discord",
+        "Telegram",
+        "钉钉",
+        "DingTalk",
+        "Tim"
+    ]
+}

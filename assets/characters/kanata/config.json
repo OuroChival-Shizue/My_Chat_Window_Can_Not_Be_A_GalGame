@@ -1,0 +1,47 @@
+{
+    "meta": {
+        "name": "日向彼方",
+        "id": "yuraa"
+    },
+    "assets": {
+        "dialog_box": "kanata_box_1.png"
+    },
+    "style": {
+        "text_color": [
+            255,
+            255,
+            255
+        ],
+        "name_color": [
+            253,
+            145,
+            175
+        ],
+        "font_size": 46,
+        "name_font_size": 46
+    },
+    "layout": {
+        "stand_pos": [
+            969,
+            403
+        ],
+        "box_pos": [
+            0,
+            0
+        ],
+        "text_area": [
+            437,
+            1205,
+            2187,
+            1415
+        ],
+        "name_pos": [
+            625,
+            1093
+        ],
+        "stand_scale": 1.279,
+        "stand_on_top": false,
+        "current_portrait": "kanata_portrait_1.png",
+        "current_background": "kanata_bg_1.jpg"
+    }
+}
