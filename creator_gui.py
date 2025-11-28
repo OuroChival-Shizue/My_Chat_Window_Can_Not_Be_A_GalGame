@@ -11,10 +11,9 @@ from PyQt6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsRectItem, QGraphicsItem, QCheckBox,
     QSpinBox, QComboBox, QInputDialog, QFileDialog, QLineEdit, QDialog,
     QDockWidget, QListWidget, QListWidgetItem, QFormLayout, QColorDialog,
-    QMenu, QToolBar, QSplitter, QFrame, QGroupBox, QScrollArea, QDialogButtonBox,
-    QProgressBar
+    QMenu, QToolBar, QSplitter, QFrame, QGroupBox, QScrollArea, QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QSize, QPointF, QPoint, QThread
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QSize, QPointF, QPoint
 from PyQt6.QtGui import (
     QPixmap, QColor, QPen, QBrush, QFont, QImage, QAction, 
     QPainter, QIcon, QDragEnterEvent, QDropEvent, QFontDatabase, QCursor
@@ -22,150 +21,18 @@ from PyQt6.QtGui import (
 
 # 尝试导入后端模块
 try:
-    from core.utils import load_global_config, save_global_config, normalize_layout
+    from core.utils import load_global_config, save_global_config
     from core.renderer import CharacterRenderer
     from core.prebuild import prebuild_character
 except ImportError:
     print("Warning: Core modules not found. Some features may not work.")
     def load_global_config(): return {}
     def save_global_config(cfg): pass
-    def normalize_layout(layout, canvas): return layout or {}
     CharacterRenderer = None
     prebuild_character = None
 
 BASE_PATH = "assets"
-DEFAULT_CANVAS_SIZE = (2560, 1440)
-COMMON_RESOLUTIONS = [
-    (1280, 720),
-    (1600, 900),
-    (1920, 1080),
-    (2560, 1440),
-    (3440, 1440),
-    (3840, 2160),
-]
-
-
-def _load_canvas_size_from_config() -> Tuple[int, int]:
-    """Read render.canvas_size from global_config."""
-    try:
-        cfg = load_global_config()
-        render_cfg = cfg.get("render", {})
-        size = render_cfg.get("canvas_size")
-        if (
-            isinstance(size, (list, tuple))
-            and len(size) == 2
-            and int(size[0]) > 0
-            and int(size[1]) > 0
-        ):
-            return int(size[0]), int(size[1])
-    except Exception as exc:
-        print(f"⚠️ 读取画布配置失败，采用默认值: {exc}")
-    return DEFAULT_CANVAS_SIZE
-
-
-CANVAS_W, CANVAS_H = _load_canvas_size_from_config()
-
-# =============================================================================
-# 预处理进度（后台线程 + 模态进度框）
-# =============================================================================
-
-
-class PrebuildWorker(QThread):
-    progress = pyqtSignal(str, int, int, str)
-    finished_ok = pyqtSignal()
-    failed = pyqtSignal(str)
-
-    def __init__(self, char_id: str, base_path: str, cache_dir: str, parent=None):
-        super().__init__(parent)
-        self.char_id = char_id
-        self.base_path = base_path
-        self.cache_dir = cache_dir
-
-    def _report(self, event: str, current: int, total: int, message: str):
-        self.progress.emit(event, current, total, message or "")
-
-    def run(self):
-        try:
-            prebuild_character(
-                self.char_id,
-                self.base_path,
-                self.cache_dir,
-                force=True,
-                progress=self._report,
-            )
-            self.finished_ok.emit()
-        except Exception as exc:  # pragma: no cover - UI helper
-            self.failed.emit(str(exc))
-
-
-class PrebuildProgressDialog(QDialog):
-    def __init__(self, parent, char_id: str, base_path: str, cache_dir: str):
-        super().__init__(parent)
-        self.setWindowTitle(f"生成缓存 - {char_id}")
-        self.setModal(True)
-        self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
-
-        self.success = False
-        self._had_error = False
-        self._error_message = ""
-
-        layout = QVBoxLayout(self)
-        self.label_stage = QLabel("准备中...")
-        self.label_detail = QLabel("")
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
-
-        layout.addWidget(self.label_stage)
-        layout.addWidget(self.progress_bar)
-        layout.addWidget(self.label_detail)
-
-        self.worker = PrebuildWorker(char_id, base_path, cache_dir, self)
-        self.worker.progress.connect(self._on_progress)
-        self.worker.finished_ok.connect(self._on_done)
-        self.worker.failed.connect(self._on_failed)
-        self.worker.start()
-
-    def _on_progress(self, event: str, current: int, total: int, message: str):
-        if event == "error":
-            self._had_error = True
-            self._error_message = message or "未知错误"
-
-        if total > 0:
-            if self.progress_bar.maximum() != total:
-                self.progress_bar.setRange(0, total)
-            self.progress_bar.setValue(min(current, total))
-        else:
-            self.progress_bar.setRange(0, 0)
-
-        stage_map = {
-            "start": "准备素材...",
-            "prepare_bg": "处理中...",
-            "composite": "生成底图",
-            "skip": "缓存已存在",
-            "done": "完成",
-        }
-        if event in stage_map:
-            if total:
-                self.label_stage.setText(f"{stage_map[event]} ({current}/{max(total, 1)})")
-            else:
-                self.label_stage.setText(stage_map[event])
-
-        if message:
-            self.label_detail.setText(message)
-
-    def _finish(self):
-        self.accept()
-
-    def _on_done(self):
-        if self._had_error:
-            QMessageBox.warning(self, "警告", self._error_message)
-        else:
-            self.success = True
-        self._finish()
-
-    def _on_failed(self, message: str):
-        QMessageBox.critical(self, "生成失败", message)
-        self._finish()
+CANVAS_W, CANVAS_H = 2560, 1440
 
 # Z-Index 层级定义
 Z_BG = 0
@@ -322,7 +189,8 @@ class ResizableTextItem(QGraphicsRectItem):
             font.setFamily("Microsoft YaHei")
         painter.setFont(font)
         
-        text_rect = self.rect()
+        margin = 10
+        text_rect = self.rect().adjusted(margin, margin, -margin, -margin)
         painter.drawText(text_rect, Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignLeft, self.preview_text)
 
 
@@ -466,9 +334,6 @@ class MainWindow(QMainWindow):
         }
 
         self.custom_font_family = ""
-        self.available_resolutions = list(COMMON_RESOLUTIONS)
-        self.cache_outdated = False
-        self.resolution_prompted = False
         self._load_custom_font()
 
         self._init_ui()
@@ -485,29 +350,6 @@ class MainWindow(QMainWindow):
                     print(f"已加载字体: {self.custom_font_family}")
         else:
             print(f"未找到字体文件: {font_path}")
-
-    def _populate_resolution_combo(self):
-        if not hasattr(self, "combo_resolution"):
-            return
-        self.combo_resolution.blockSignals(True)
-        self.combo_resolution.clear()
-        for w, h in self.available_resolutions:
-            label = f"{w} x {h}"
-            self.combo_resolution.addItem(label, (w, h))
-        self.combo_resolution.blockSignals(False)
-
-    def _sync_resolution_combo(self):
-        if not hasattr(self, "combo_resolution"):
-            return
-        current = (CANVAS_W, CANVAS_H)
-        idx = self.combo_resolution.findData(current)
-        if idx == -1:
-            label = f"{current[0]} x {current[1]}"
-            self.combo_resolution.addItem(label, current)
-            idx = self.combo_resolution.findData(current)
-        self.combo_resolution.blockSignals(True)
-        self.combo_resolution.setCurrentIndex(idx)
-        self.combo_resolution.blockSignals(False)
 
     def _init_ui(self):
         self._create_menus()
@@ -673,15 +515,6 @@ class MainWindow(QMainWindow):
         
         group_style.setLayout(form_style)
         layout.addWidget(group_style)
-
-        group_canvas = QGroupBox("画布设置")
-        form_canvas = QFormLayout()
-        self.combo_resolution = QComboBox()
-        self._populate_resolution_combo()
-        self.combo_resolution.currentIndexChanged.connect(self.on_resolution_changed)
-        form_canvas.addRow("分辨率:", self.combo_resolution)
-        group_canvas.setLayout(form_canvas)
-        layout.addWidget(group_canvas)
         
         group_layout = QGroupBox("布局微调")
         form_layout = QFormLayout()
@@ -827,11 +660,6 @@ class MainWindow(QMainWindow):
         else:
             self.config = default_cfg
 
-        layout = self.config.setdefault("layout", {})
-        normalized = normalize_layout(layout, (CANVAS_W, CANVAS_H))
-        normalized["_canvas_size"] = [CANVAS_W, CANVAS_H]
-        self.config["layout"] = normalized
-
     def _merge_dicts(self, base, update):
         for k, v in update.items():
             if isinstance(v, dict) and k in base:
@@ -895,8 +723,6 @@ class MainWindow(QMainWindow):
         if curr_bg:
             items = self.list_backgrounds.findItems(curr_bg, Qt.MatchFlag.MatchExactly)
             if items: self.list_backgrounds.setCurrentItem(items[0])
-
-        self._sync_resolution_combo()
 
     def rebuild_scene(self):
         self.scene_items = {k: None for k in self.scene_items}
@@ -1041,90 +867,11 @@ class MainWindow(QMainWindow):
                 color=style["name_color"]
             )
 
-    def on_resolution_changed(self, index: int):
-        if index < 0 or not hasattr(self, "combo_resolution"):
-            return
-        data = self.combo_resolution.itemData(index)
-        if not data:
-            return
-        self._apply_canvas_size(tuple(data))
-
     def on_layout_changed(self):
         self.config.setdefault("layout", {})["stand_on_top"] = self.check_on_top.isChecked()
         if self.scene_items["portrait"]:
             z = Z_PORTRAIT_TOP if self.check_on_top.isChecked() else Z_PORTRAIT_BOTTOM
             self.scene_items["portrait"].setZValue(z)
-
-    def _apply_canvas_size(self, size: Tuple[int, int]):
-        global CANVAS_W, CANVAS_H
-        if (CANVAS_W, CANVAS_H) == size:
-            return
-
-        layout = self.config.setdefault("layout", {})
-        old_size = layout.get("_canvas_size")
-        if isinstance(old_size, (list, tuple)) and len(old_size) == 2:
-            old_tuple = (int(old_size[0]), int(old_size[1]))
-        else:
-            old_tuple = (CANVAS_W, CANVAS_H)
-
-        self._scale_layout_for_canvas(layout, old_tuple, size)
-
-        CANVAS_W, CANVAS_H = size
-        try:
-            cfg = load_global_config()
-        except Exception:
-            cfg = {}
-        render_cfg = cfg.get("render", {})
-        render_cfg["canvas_size"] = [size[0], size[1]]
-        cfg["render"] = render_cfg
-        try:
-            save_global_config(cfg)
-        except Exception as exc:
-            print(f"保存全局分辨率失败: {exc}")
-
-        layout["_canvas_size"] = [CANVAS_W, CANVAS_H]
-        self.scene.setSceneRect(0, 0, CANVAS_W, CANVAS_H)
-        self.update_ui_from_config()
-        self.rebuild_scene()
-        self.fit_view()
-        self.cache_outdated = True
-        self.resolution_prompted = False
-        self.save_config()
-
-    def _scale_layout_for_canvas(self, layout: Dict[str, Any], old_size: Tuple[int, int], new_size: Tuple[int, int]):
-        if not old_size or not new_size:
-            return
-        if old_size[0] <= 0 or old_size[1] <= 0:
-            return
-        if old_size == new_size:
-            return
-
-        scale_x = new_size[0] / old_size[0]
-        scale_y = new_size[1] / old_size[1]
-
-        def scale_point(value):
-            if not isinstance(value, (list, tuple)) or len(value) != 2:
-                return value
-            return [int(round(value[0] * scale_x)), int(round(value[1] * scale_y))]
-
-        def scale_rect(value):
-            if not isinstance(value, (list, tuple)) or len(value) != 4:
-                return value
-            return [
-                int(round(value[0] * scale_x)),
-                int(round(value[1] * scale_y)),
-                int(round(value[2] * scale_x)),
-                int(round(value[3] * scale_y)),
-            ]
-
-        if "text_area" in layout:
-            layout["text_area"] = scale_rect(layout["text_area"])
-        if "name_pos" in layout:
-            layout["name_pos"] = scale_point(layout["name_pos"])
-        if "stand_pos" in layout:
-            layout["stand_pos"] = scale_point(layout["stand_pos"])
-        if "box_pos" in layout:
-            layout["box_pos"] = scale_point(layout["box_pos"])
 
     def import_asset(self, file_path, asset_type):
         """通用导入逻辑 (拖拽用)"""
@@ -1360,8 +1107,6 @@ class MainWindow(QMainWindow):
             x2, y2 = int(p2.x()), int(p2.y())
             layout["text_area"] = [min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)]
 
-        layout["_canvas_size"] = [CANVAS_W, CANVAS_H]
-
     def save_config(self):
         if not self.current_char_id: return
         
@@ -1375,40 +1120,22 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "保存失败", str(e))
 
     def generate_cache(self):
-        self._run_generate_cache(show_message=True)
-
-    def _run_generate_cache(self, show_message: bool = True) -> bool:
         if not prebuild_character or not self.current_char_id:
             QMessageBox.warning(self, "错误", "无法调用预处理模块")
-            return False
-
+            return
+            
         self.save_config()
-        cache_dir = os.path.join(BASE_PATH, "cache")
-        dialog = PrebuildProgressDialog(self, self.current_char_id, BASE_PATH, cache_dir)
-        dialog.exec()
-        if dialog.success:
-            self.cache_outdated = False
-            self.resolution_prompted = False
-            if show_message:
-                QMessageBox.information(self, "完成", "缓存生成完毕")
-            return True
-        return False
+        try:
+            cache_dir = os.path.join(BASE_PATH, "cache")
+            prebuild_character(self.current_char_id, BASE_PATH, cache_dir, force=True)
+            QMessageBox.information(self, "完成", "缓存生成完毕")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
 
     def preview_render(self):
         if not CharacterRenderer or not self.current_char_id:
             return
-
-        if self.cache_outdated and not self.resolution_prompted:
-            reply = QMessageBox.question(
-                self,
-                "是否重新生成缓存？",
-                "检测到画布分辨率已更改，是否现在重新生成缓存？",
-            )
-            self.resolution_prompted = True
-            if reply == QMessageBox.StandardButton.Yes:
-                if not self._run_generate_cache(show_message=False):
-                    return
-
+            
         self.save_config()
         text, ok = QInputDialog.getText(self, "渲染预览", "输入测试台词:")
         if ok and text:
@@ -1417,14 +1144,7 @@ class MainWindow(QMainWindow):
                 p_key = os.path.splitext(self.config["layout"].get("current_portrait", ""))[0]
                 bg_key = os.path.splitext(self.config["layout"].get("current_background", ""))[0]
                 
-                try:
-                    pil_img = renderer.render(text, portrait_key=p_key, bg_key=bg_key)
-                except Exception:
-                    prebuild_character(self.current_char_id, BASE_PATH, os.path.join(BASE_PATH, "cache"), force=True)
-                    self.cache_outdated = False
-                    self.resolution_prompted = False
-                    renderer = CharacterRenderer(self.current_char_id, BASE_PATH)
-                    pil_img = renderer.render(text, portrait_key=p_key, bg_key=bg_key)
+                pil_img = renderer.render(text, portrait_key=p_key, bg_key=bg_key)
                 pil_img.show()
             except Exception as e:
                 QMessageBox.critical(self, "渲染失败", str(e))

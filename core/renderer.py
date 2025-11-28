@@ -1,30 +1,10 @@
 import os
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-try:
-    from .utils import load_global_config, normalize_layout
-except Exception:  # pragma: no cover - fallback for standalone runs
-    def load_global_config() -> Dict[str, object]:
-        return {}
-
-    def normalize_layout(layout, canvas_size):
-        return layout or {}
-
-def _load_render_config() -> Tuple[Tuple[int, int], str, str, bool]:
-    cfg = load_global_config() or {}
-    render = cfg.get("render", {})
-    canvas_size = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
-    cache_format = str(render.get("cache_format", "jpeg")).lower()
-    if cache_format not in {"jpeg", "png"}:
-        cache_format = "jpeg"
-    cache_ext = ".jpg" if cache_format == "jpeg" else ".png"
-    use_memory = bool(render.get("use_memory_canvas_cache", True))
-    return canvas_size, cache_format, cache_ext, use_memory
-
-CANVAS_SIZE, CACHE_FORMAT, CACHE_EXT, USE_MEMORY_CACHE = _load_render_config()
+CANVAS_SIZE = (2560, 1440)
 
 
 class CharacterRenderer:
@@ -38,12 +18,6 @@ class CharacterRenderer:
             self.base_path, "common", "fonts", self.default_font_name
         )
 
-        self.canvas_size = CANVAS_SIZE
-        self.cache_ext = CACHE_EXT
-        self.use_memory_cache = USE_MEMORY_CACHE
-        self._canvas_cache: Dict[Tuple[str, str], Image.Image] = {}
-        self._scaled_suffix = f"{self.canvas_size[0]}x{self.canvas_size[1]}"
-
         print(f"--- 开始加载角色 {char_id} ---")
 
         config_path = os.path.join(self.char_root, "config.json")
@@ -52,11 +26,6 @@ class CharacterRenderer:
 
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
-
-        layout_raw = self.config.setdefault("layout", {})
-        self.layout = normalize_layout(layout_raw, self.canvas_size)
-        self.layout["_canvas_size"] = [self.canvas_size[0], self.canvas_size[1]]
-        self.config["layout"] = self.layout
 
         self.assets: Dict[str, object] = {
             "dialog_box": None,
@@ -80,52 +49,25 @@ class CharacterRenderer:
                 if file.lower().endswith((".png", ".jpg", ".jpeg")):
                     key = os.path.splitext(file)[0]
                     full_path = os.path.join(portrait_dir, file)
-                    portraits = self.assets.setdefault("portraits", {})
-                    portraits[key] = Image.open(full_path).convert("RGBA")  # type: ignore[index]
+                    self.assets["portraits"][key] = Image.open(full_path).convert("RGBA")
                     count += 1
             print(f"✅ 已加载 {count} 张立绘")
         else:
             print(f"⚠️ 警告: 找不到立绘文件夹 {portrait_dir}")
 
-        # 背景（优先使用预缩放目录，再回退到角色目录 / 公共目录）
-        pre_scaled_bg_dir = os.path.join(
-            self.base_path, "pre_scaled", "characters", self.char_id, "background"
-        )
-        char_bg_dir = os.path.join(self.char_root, "background")
-        common_bg_dir = os.path.join(self.base_path, "common", "background")
+        # 背景
+        bg_dir = os.path.join(self.char_root, "background")
+        if not os.path.exists(bg_dir):
+            bg_dir = os.path.join(self.base_path, "common", "background")
 
-        bg_dirs_to_try: List[str] = []
-        if os.path.isdir(pre_scaled_bg_dir):
-            bg_dirs_to_try.append(pre_scaled_bg_dir)
-        if os.path.isdir(char_bg_dir):
-            bg_dirs_to_try.append(char_bg_dir)
-        if os.path.isdir(common_bg_dir):
-            bg_dirs_to_try.append(common_bg_dir)
-
-        count = 0
-        self.assets["backgrounds"] = {}
-        for bg_dir in bg_dirs_to_try:
-            files = [
-                f for f in os.listdir(bg_dir)
-                if f.lower().endswith((".png", ".jpg", ".jpeg"))
-            ]
-            for file in files:
-                base_name, ext = os.path.splitext(file)
-                key = base_name
-                if "@" in base_name:
-                    prefix, tag = base_name.rsplit("@", 1)
-                    if tag != self._scaled_suffix:
-                        continue
-                    key = prefix
-
-                if key in self.assets["backgrounds"]:  # type: ignore[index]
-                    continue
-                full_path = os.path.join(bg_dir, file)
-                img = Image.open(full_path).convert("RGBA")
-                self.assets["backgrounds"][key] = self._resize_to_canvas(img)  # type: ignore[index]
-                count += 1
-
-        if count:
+        if os.path.exists(bg_dir):
+            count = 0
+            for file in os.listdir(bg_dir):
+                if file.lower().endswith((".png", ".jpg", ".jpeg")):
+                    key = os.path.splitext(file)[0]
+                    full_path = os.path.join(bg_dir, file)
+                    self.assets["backgrounds"][key] = Image.open(full_path).convert("RGBA")
+                    count += 1
             print(f"✅ 已加载 {count} 张背景")
         else:
             print("⚠️ 警告: 找不到任何背景文件夹")
@@ -134,8 +76,7 @@ class CharacterRenderer:
         box_filename = self.config.get("assets", {}).get("dialog_box", "textbox_bg.png")
         box_path = os.path.join(self.char_root, box_filename)
         if os.path.exists(box_path):
-            box_img = Image.open(box_path).convert("RGBA")
-            self.assets["dialog_box"] = self._fit_dialog_box_to_canvas(box_img)
+            self.assets["dialog_box"] = Image.open(box_path).convert("RGBA")
             print(f"✅ 对话框已加载: {box_filename}")
         else:
             print(f"⚠️ 警告: 找不到对话框图片 {box_path}")
@@ -156,8 +97,8 @@ class CharacterRenderer:
         bg_key: Optional[str] = None,
         speaker_name: Optional[str] = None,
     ) -> Image.Image:
-        portrait_key = portrait_key or self._first_key(self.assets["portraits"])  # type: ignore[arg-type]
-        bg_key = bg_key or self._first_key(self.assets["backgrounds"])  # type: ignore[arg-type]
+        portrait_key = portrait_key or self._first_key(self.assets["portraits"])  # type: ignore
+        bg_key = bg_key or self._first_key(self.assets["backgrounds"])  # type: ignore
 
         canvas = self._get_base_canvas(portrait_key, bg_key)
         draw = ImageDraw.Draw(canvas)
@@ -165,34 +106,16 @@ class CharacterRenderer:
         return canvas
 
     def _get_base_canvas(self, portrait_key: str, bg_key: str) -> Image.Image:
-        cache_key = (portrait_key, bg_key)
-        if self.use_memory_cache and cache_key in self._canvas_cache:
-            return self._canvas_cache[cache_key]
-
-        filename = f"p_{portrait_key}__b_{bg_key}{self.cache_ext}"
+        filename = f"p_{portrait_key}__b_{bg_key}.png"
         cache_path = os.path.join(self.base_path, "cache", self.char_id, filename)
 
         if os.path.exists(cache_path):
-            img = Image.open(cache_path).convert("RGBA")
-            if self.use_memory_cache:
-                self._canvas_cache[cache_key] = img
-            return img
+            return Image.open(cache_path).convert("RGBA")
 
-        # 兼容旧缓存扩展名
-        legacy_path = cache_path[:-len(self.cache_ext)] + ".png"
-        if not os.path.exists(cache_path) and os.path.exists(legacy_path):
-            img = Image.open(legacy_path).convert("RGBA")
-            if self.use_memory_cache:
-                self._canvas_cache[cache_key] = img
-            return img
-
-        img = self._realtime_render(portrait_key, bg_key)
-        if self.use_memory_cache:
-            self._canvas_cache[cache_key] = img
-        return img
+        return self._realtime_render(portrait_key, bg_key)
 
     def _realtime_render(self, portrait_key: str, bg_key: str) -> Image.Image:
-        canvas_w, canvas_h = self.canvas_size
+        canvas_w, canvas_h = CANVAS_SIZE
         canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
         # 背景
@@ -201,10 +124,9 @@ class CharacterRenderer:
             bg_resized = bg.resize((canvas_w, canvas_h), Image.LANCZOS)
             canvas.paste(bg_resized, (0, 0))
 
-        layout = self.layout
+        layout = self.config.get("layout", {})
 
         # 立绘
-        stand_pos = tuple(layout.get("stand_pos", (0, 0)))
         portrait = self.assets["portraits"].get(portrait_key) or self._first_value(self.assets["portraits"])  # type: ignore
         if portrait:
             stand_scale = layout.get("stand_scale", 1.0)
@@ -212,6 +134,7 @@ class CharacterRenderer:
                 new_w = int(portrait.width * stand_scale)
                 new_h = int(portrait.height * stand_scale)
                 portrait = portrait.resize((new_w, new_h), Image.LANCZOS)
+            stand_pos = tuple(layout.get("stand_pos", (0, 0)))
 
         # 对话框：拉满宽度并贴底
         dialog_box = self.assets.get("dialog_box")
@@ -234,14 +157,9 @@ class CharacterRenderer:
 
         return canvas
 
-    def _resize_to_canvas(self, img: Image.Image) -> Image.Image:
-        if img.size == self.canvas_size:
-            return img
-        return img.resize(self.canvas_size, Image.LANCZOS)
-
     def _fit_dialog_box_to_canvas(self, box_img: Image.Image) -> Tuple[Image.Image, Tuple[int, int]]:
         """Resize dialog box to canvas width and bottom align."""
-        canvas_w, canvas_h = self.canvas_size
+        canvas_w, canvas_h = CANVAS_SIZE
         if box_img.width != canvas_w:
             scale = canvas_w / box_img.width
             new_h = int(box_img.height * scale)
@@ -264,7 +182,7 @@ class CharacterRenderer:
         font_text: ImageFont.FreeTypeFont = self._get_font(text_size, font_text_path)  # type: ignore
         font_name: ImageFont.FreeTypeFont = self._get_font(name_size, font_name_path)  # type: ignore
 
-        layout = self.layout
+        layout = self.config.get("layout", {})
         text_area = layout.get("text_area", [100, 800, 1800, 1000])
         name_pos = layout.get("name_pos", [100, 100])
 
@@ -277,7 +195,7 @@ class CharacterRenderer:
 
         # 正文
         x1, y1, x2, y2 = text_area
-        max_width = max(10, x2 - x1)
+        max_width = x2 - x1
         lines = self._wrap_text(text, draw, font_text, max_width)
         line_height = self._line_height(font_text)
 

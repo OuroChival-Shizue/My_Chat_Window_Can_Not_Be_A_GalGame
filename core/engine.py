@@ -78,17 +78,10 @@ class GalGameEngine:
         try:
             image = self.renderer.render(text, self.current_expression)
         except Exception as e:
-            print(f"⚠️ 渲染失败，尝试自动生成缓存: {e}")
-            try:
-                ensure_character_cache(self.char_id)
-                self.renderer = CharacterRenderer(self.char_id)
-                image = self.renderer.render(text, self.current_expression)
-                print("✅ 缓存已重建，继续发送")
-            except Exception as inner:
-                print(f"❌ 渲染失败: {inner}")
-                if set_text(text):
-                    keyboard.send("ctrl+v")
-                return
+            print(f"❌ 渲染失败: {e}")
+            if set_text(text):
+                keyboard.send("ctrl+v")
+            return
 
         # 4. 将图片写入剪贴板并粘贴
         if set_image(image):
