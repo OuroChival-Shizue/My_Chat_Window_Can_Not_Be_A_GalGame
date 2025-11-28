@@ -16,8 +16,8 @@
     ],
     "render": {
         "canvas_size": [
-            1280,
-            720
+            1600,
+            900
         ],
         "cache_format": "jpeg",
         "jpeg_quality": 90,
