@@ -12,7 +12,7 @@ class CharacterRenderer:
         self.char_id = char_id
         self.base_path = base_path
         self.char_root = os.path.join(base_path, "characters", char_id)
-        self.font_cache: Dict[Tuple[int, Optional[str]], ImageFont.ImageFont] = {}
+        self.font_cache: Dict[Tuple[int, Optional[str]], ImageFont.FreeTypeFont| ImageFont.ImageFont] = {}
         self.default_font_name = "LXGWWenKai-Medium.ttf"
         self.default_font_path: Optional[str] = os.path.join(
             self.base_path, "common", "fonts", self.default_font_name
@@ -182,8 +182,8 @@ class CharacterRenderer:
 
         font_text_path = self._resolve_font_path(style.get("font_file"))
         font_name_path = self._resolve_font_path(style.get("name_font_file"))
-        font_text: ImageFont.ImageFont = self._get_font(text_size, font_text_path)
-        font_name: ImageFont.ImageFont = self._get_font(name_size, font_name_path)
+        font_text: ImageFont.ImageFont| ImageFont.FreeTypeFont = self._get_font(text_size, font_text_path)
+        font_name: ImageFont.ImageFont| ImageFont.FreeTypeFont = self._get_font(name_size, font_name_path)
 
         layout = self.config.get("layout", {})
         text_area = layout.get("text_area", [100, 800, 1800, 1000])
@@ -208,7 +208,7 @@ class CharacterRenderer:
                 break
             draw.text((x1, y), line, font=font_text, fill=text_color)
 
-    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: ImageFont.ImageFont, max_width: int):
+    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: ImageFont.ImageFont| ImageFont.FreeTypeFont, max_width: int):
         lines = []
         paragraphs = text.split("\n") if text else [""]
         for para in paragraphs:
@@ -226,7 +226,7 @@ class CharacterRenderer:
                 lines.append(current)
         return lines
 
-    def _line_height(self, font: ImageFont.ImageFont) -> int:
+    def _line_height(self, font: ImageFont.ImageFont| ImageFont.FreeTypeFont) -> int | float:
         bbox = font.getbbox("测试")
         return (bbox[3] - bbox[1]) + 4
 
@@ -248,7 +248,7 @@ class CharacterRenderer:
             return self.default_font_path
         return None
 
-    def _get_font(self, size: int, font_path: Optional[str]) -> ImageFont.ImageFont:
+    def _get_font(self, size: int, font_path: Optional[str]) -> ImageFont.ImageFont| ImageFont.FreeTypeFont:
         """Load font with caching; fallback to default when missing."""
         cache_key = (size, font_path)
         if cache_key in self.font_cache:
