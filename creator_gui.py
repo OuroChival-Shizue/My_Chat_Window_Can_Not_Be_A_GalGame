@@ -19,7 +19,6 @@ from PyQt6.QtGui import (
     QPainter, QIcon, QDragEnterEvent, QDropEvent, QFontDatabase, QCursor
 )
 
-# 尝试导入后端模块
 try:
     from core.utils import load_global_config, save_global_config
     from core.renderer import CharacterRenderer
