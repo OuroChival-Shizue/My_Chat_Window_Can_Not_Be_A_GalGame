@@ -1,9 +1,9 @@
 {
     "meta": {
-        "name": "yuraa"
+        "name": "茅崎夕樱"
     },
     "style": {
-        "font_size": 45,
+        "font_size": 39,
         "text_color": [
             255,
             255,
@@ -11,9 +11,10 @@
         ],
         "name_color": [
             255,
-            0,
+            85,
             255
-        ]
+        ],
+        "name_font_size": 29
     },
     "layout": {
         "stand_scale": 1.276,
@@ -23,20 +24,20 @@
             720
         ],
         "text_area": [
-            415,
-            590,
-            1255,
-            715
+            239,
+            591,
+            1079,
+            716
         ],
         "name_pos": [
-            264,
-            530
+            326,
+            541
         ],
         "current_portrait": "1.png",
         "current_background": "1.png",
         "stand_pos": [
-            394,
-            76
+            352,
+            51
         ],
         "box_pos": [
             0,
