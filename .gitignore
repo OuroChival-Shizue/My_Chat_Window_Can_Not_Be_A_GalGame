@@ -37,3 +37,7 @@ Thumbs.db
 
 # Project specific
 assets/cache/
+
+# AI dev tools
+.claude/
+.serena/

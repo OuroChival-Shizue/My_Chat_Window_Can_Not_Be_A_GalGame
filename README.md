@@ -46,9 +46,17 @@
 git clone https://github.com/OuroChival-Shizue/My_Chat_Window_Can_Not_Be_A_GalGame.git
 cd My_Chat_Window_Can_Not_Be_A_GalGame
 
-# 安装依赖
+# 方式 A: 使用虚拟环境（推荐，不污染系统 Python）
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate  # Linux/macOS
+pip install -r requirements.txt
+
+# 方式 B: 直接安装到系统 Python
 pip install -r requirements.txt
 ```
+
+> 💡 **提示**: 批处理文件 (`run_gui.bat`, `run_main.bat`) 已兼容两种方式。如果存在 `.venv` 目录则自动使用虚拟环境，否则使用系统 Python。
 
 ### 2. 配置角色
 运行编辑器，配置你的老婆/女儿：
