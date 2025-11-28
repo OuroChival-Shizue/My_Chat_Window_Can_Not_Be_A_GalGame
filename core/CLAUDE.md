@@ -174,6 +174,48 @@ keyboard.wait("esc")  # 阻塞直到按下 Esc
 
 **核心类**: `CharacterRenderer`
 
+#### 新增亮点
+- **全局渲染配置**：自动读取 `global_config.render` 的 `canvas_size / cache_format / use_memory_canvas_cache`，保持 GUI 与运行时一致。
+- **预缩放背景**：优先加载 `assets/pre_scaled/...`，若不存在则自动缩放并缓存，避免重复放大 2K/4K 背景（文件名形如 `1@2560x1440.png`，标记了生成时的分辨率）。
+- **底图内存缓存**：根据配置决定是否缓存 `portrait × background` 组合，提高多次发送同一表情的性能。
+
+#### 关键流程
+```python
+config = load_global_config()
+layout = normalize_layout(config["layout"], canvas_size)
+base = renderer._get_base_canvas(p_key, b_key)  # 读取磁盘缓存或实时拼接
+```
+
+---
+
+### 4️⃣ prebuild.py - 缓存预生成
+
+**核心函数**: `prebuild_character`, `ensure_character_cache`
+
+- **智能跳过**：利用 `_meta.json` 记录的 `source_signature`、画布尺寸、缓存格式来判断缓存是否失效。
+- **进度回调**：`progress` 回调（start / prepare_bg / composite / done）可被 GUI 订阅，显示实时进度。
+- **背景预缩放**：生成 `assets/pre_scaled/characters/<id>/background/`，并以 `原名@宽x高.png` 命名，方便区分不同画布尺寸。
+- **可选输出格式**：支持 JPEG/PNG，同时尊重 `render.cache_format` 与 `render.jpeg_quality`。
+
+#### 典型调用
+```python
+prebuild_character(
+    char_id,
+    base_path="assets",
+    cache_path="assets/cache",
+    force=True,
+    progress=lambda event, cur, total, msg: ...
+)
+```
+
+GUI 中的“生成缓存”按钮会启动 `PrebuildWorker(QThread)` 并在 `PrebuildProgressDialog` 中展示这些事件。
+
+---
+
+### 3️⃣ renderer.py - 图像渲染器
+
+**核心类**: `CharacterRenderer`
+
 #### 职责
 - 加载角色配置与资源（立绘、背景、对话框、字体）
 - 从缓存加载预合成底图

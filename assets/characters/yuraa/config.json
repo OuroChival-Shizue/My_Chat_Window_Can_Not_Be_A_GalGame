@@ -1,47 +1,49 @@
 {
     "meta": {
-        "name": "茅崎夕樱",
-        "id": "yuraa"
-    },
-    "assets": {
-        "dialog_box": "textbox_bg.png"
+        "name": "yuraa"
     },
     "style": {
+        "font_size": 45,
         "text_color": [
             255,
             255,
             255
         ],
         "name_color": [
-            253,
-            145,
-            175
-        ],
-        "font_size": 46,
-        "name_font_size": 46
+            255,
+            0,
+            255
+        ]
     },
     "layout": {
+        "stand_scale": 1.276,
+        "stand_on_top": false,
+        "_canvas_size": [
+            1280,
+            720
+        ],
+        "text_area": [
+            415,
+            590,
+            1255,
+            715
+        ],
+        "name_pos": [
+            264,
+            530
+        ],
+        "current_portrait": "1.png",
+        "current_background": "1.png",
         "stand_pos": [
-            842,
-            126
+            394,
+            76
         ],
         "box_pos": [
             0,
             0
-        ],
-        "text_area": [
-            499,
-            1179,
-            2249,
-            1389
-        ],
-        "name_pos": [
-            624,
-            1086
-        ],
-        "stand_scale": 1.965,
-        "stand_on_top": false,
-        "current_portrait": "1.png",
-        "current_background": "1.png"
+        ]
+    },
+    "assets": {
+        "dialog_box": "textbox_bg.png"
     }
 }

@@ -13,5 +13,14 @@
         "钉钉",
         "DingTalk",
         "Tim"
-    ]
+    ],
+    "render": {
+        "canvas_size": [
+            1280,
+            720
+        ],
+        "cache_format": "jpeg",
+        "jpeg_quality": 90,
+        "use_memory_canvas_cache": true
+    }
 }
