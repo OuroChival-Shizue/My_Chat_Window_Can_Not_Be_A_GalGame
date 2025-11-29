@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any, List
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - fallback for standalone runs
         return layout or {}
 
 def _load_render_config() -> Tuple[Tuple[int, int], str, str, bool]:
-    cfg = load_global_config() or {}
+    cfg:dict = load_global_config() or {}
     render = cfg.get("render", {})
     canvas_size = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
     cache_format = str(render.get("cache_format", "jpeg")).lower()
@@ -32,7 +32,7 @@ class CharacterRenderer:
         self.char_id = char_id
         self.base_path = base_path
         self.char_root = os.path.join(base_path, "characters", char_id)
-        self.font_cache: Dict[Tuple[int, Optional[str]], ImageFont.ImageFont] = {}
+        self.font_cache: Dict[Tuple[int, Optional[str]], ImageFont.FreeTypeFont| ImageFont.ImageFont] = {}
         self.default_font_name = "LXGWWenKai-Medium.ttf"
         self.default_font_path: Optional[str] = os.path.join(
             self.base_path, "common", "fonts", self.default_font_name
@@ -52,13 +52,11 @@ class CharacterRenderer:
 
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
-
         layout_raw = self.config.setdefault("layout", {})
         self.layout = normalize_layout(layout_raw, self.canvas_size)
         self.layout["_canvas_size"] = [self.canvas_size[0], self.canvas_size[1]]
         self.config["layout"] = self.layout
-
-        self.assets: Dict[str, object] = {
+        self.assets: Dict[str, Any] = {
             "dialog_box": None,
             "portraits": {},
             "backgrounds": {},
@@ -156,9 +154,10 @@ class CharacterRenderer:
         bg_key: Optional[str] = None,
         speaker_name: Optional[str] = None,
     ) -> Image.Image:
-        portrait_key = portrait_key or self._first_key(self.assets["portraits"])  # type: ignore[arg-type]
-        bg_key = bg_key or self._first_key(self.assets["backgrounds"])  # type: ignore[arg-type]
-
+        portrait_key = portrait_key or self._first_key(self.assets["portraits"])
+        bg_key = bg_key or self._first_key(self.assets["backgrounds"])
+        if not portrait_key or not bg_key:
+            raise ValueError("无法渲染: 未提供立绘或背景")
         canvas = self._get_base_canvas(portrait_key, bg_key).copy()
         draw = ImageDraw.Draw(canvas)
         self._draw_text(draw, text, speaker_name)
@@ -196,22 +195,22 @@ class CharacterRenderer:
         canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
 
         # 背景
-        bg = self.assets["backgrounds"].get(bg_key) or self._first_value(self.assets["backgrounds"])  # type: ignore
+        bg = self.assets["backgrounds"].get(bg_key) or self._first_value(self.assets["backgrounds"])
         if bg:
-            bg_resized = bg.resize((canvas_w, canvas_h), Image.LANCZOS)
+            bg_resized = bg.resize((canvas_w, canvas_h), Image.Resampling.LANCZOS)
             canvas.paste(bg_resized, (0, 0))
 
         layout = self.layout
 
         # 立绘
         stand_pos = tuple(layout.get("stand_pos", (0, 0)))
-        portrait = self.assets["portraits"].get(portrait_key) or self._first_value(self.assets["portraits"])  # type: ignore
+        portrait = self.assets["portraits"].get(portrait_key) or self._first_value(self.assets["portraits"])
         if portrait:
             stand_scale = layout.get("stand_scale", 1.0)
             if stand_scale != 1.0:
                 new_w = int(portrait.width * stand_scale)
                 new_h = int(portrait.height * stand_scale)
-                portrait = portrait.resize((new_w, new_h), Image.LANCZOS)
+                portrait = portrait.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
         # 对话框：拉满宽度并贴底
         dialog_box = self.assets.get("dialog_box")
@@ -237,7 +236,7 @@ class CharacterRenderer:
     def _resize_to_canvas(self, img: Image.Image) -> Image.Image:
         if img.size == self.canvas_size:
             return img
-        return img.resize(self.canvas_size, Image.LANCZOS)
+        return img.resize(self.canvas_size, Image.Resampling.LANCZOS)
 
     def _fit_dialog_box_to_canvas(self, box_img: Image.Image) -> Tuple[Image.Image, Tuple[int, int]]:
         """Resize dialog box to canvas width and bottom align."""
@@ -245,7 +244,7 @@ class CharacterRenderer:
         if box_img.width != canvas_w:
             scale = canvas_w / box_img.width
             new_h = int(box_img.height * scale)
-            box_img = box_img.resize((canvas_w, new_h), Image.LANCZOS)
+            box_img = box_img.resize((canvas_w, new_h), Image.Resampling.LANCZOS)
         box_pos = (0, canvas_h - box_img.height)
         return box_img, box_pos
 
@@ -261,19 +260,19 @@ class CharacterRenderer:
 
         font_text_path = self._resolve_font_path(style.get("font_file"))
         font_name_path = self._resolve_font_path(style.get("name_font_file"))
-        font_text: ImageFont.FreeTypeFont = self._get_font(text_size, font_text_path)  # type: ignore
-        font_name: ImageFont.FreeTypeFont = self._get_font(name_size, font_name_path)  # type: ignore
+        font_text: ImageFont.ImageFont| ImageFont.FreeTypeFont = self._get_font(text_size, font_text_path)
+        font_name: ImageFont.ImageFont| ImageFont.FreeTypeFont = self._get_font(name_size, font_name_path)
 
         layout = self.layout
         text_area = layout.get("text_area", [100, 800, 1800, 1000])
-        name_pos = layout.get("name_pos", [100, 100])
+        name_pos : Tuple[float, float] = layout.get("name_pos", [100, 100])
 
         if speaker_name is None:
             speaker_name = self.config.get("meta", {}).get("name", self.char_id)
 
         # 名字
         if speaker_name:
-            draw.text(tuple(name_pos), speaker_name, font=font_name, fill=name_color)
+            draw.text(name_pos, speaker_name, font=font_name, fill=name_color)
 
         # 正文
         x1, y1, x2, y2 = text_area
@@ -287,7 +286,7 @@ class CharacterRenderer:
                 break
             draw.text((x1, y), line, font=font_text, fill=text_color)
 
-    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: ImageFont.ImageFont, max_width: int):
+    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: ImageFont.ImageFont| ImageFont.FreeTypeFont, max_width: int):
         lines = []
         paragraphs = text.split("\n") if text else [""]
         for para in paragraphs:
@@ -305,7 +304,7 @@ class CharacterRenderer:
                 lines.append(current)
         return lines
 
-    def _line_height(self, font: ImageFont.ImageFont) -> int:
+    def _line_height(self, font: ImageFont.ImageFont| ImageFont.FreeTypeFont) -> int | float:
         bbox = font.getbbox("测试")
         return (bbox[3] - bbox[1]) + 4
 
@@ -327,7 +326,7 @@ class CharacterRenderer:
             return self.default_font_path
         return None
 
-    def _get_font(self, size: int, font_path: Optional[str]) -> ImageFont.ImageFont:
+    def _get_font(self, size: int, font_path: Optional[str]) -> ImageFont.ImageFont| ImageFont.FreeTypeFont:
         """Load font with caching; fallback to default when missing."""
         cache_key = (size, font_path)
         if cache_key in self.font_cache:

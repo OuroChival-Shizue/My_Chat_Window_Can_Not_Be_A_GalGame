@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
         self.config: Dict[str, Any] = {}
         self.config_path: str = ""
 
-        self.scene_items = {
+        self.scene_items : Dict[str, Optional[ResizableTextItem|ScalableImageItem]] = {
             "bg": None,
             "portrait": None,
             "box": None,
@@ -103,10 +103,13 @@ class MainWindow(QMainWindow):
 
     def _create_menus(self):
         menubar = self.menuBar()
+        if menubar is None:
+            raise RuntimeError("Menu bar is not available")
 
         # 文件菜单
         file_menu = menubar.addMenu("文件 (&File)")
-
+        if file_menu is None:
+            raise RuntimeError("File menu is not available")
         action_new = QAction("新建角色 (New Character)", self)
         action_new.setShortcut("Ctrl+N")
         action_new.triggered.connect(self.create_new_character)
@@ -129,6 +132,8 @@ class MainWindow(QMainWindow):
         # 工具菜单
         tools_menu = menubar.addMenu("工具 (&Tools)")
 
+        if tools_menu is None:
+            raise RuntimeError("Tools menu is not available")
         action_preview = QAction("渲染预览 (Render Preview)", self)
         action_preview.setShortcut("F5")
         action_preview.triggered.connect(self.preview_render)
@@ -329,11 +334,13 @@ class MainWindow(QMainWindow):
         canvas_w, canvas_h = CanvasConfig.get_size()
 
         # 背景矩形
-        self.scene.addRect(
+        qGraphicsRectItem = self.scene.addRect(
             0, 0, canvas_w, canvas_h,
             QPen(Qt.GlobalColor.black),
             QBrush(Qt.GlobalColor.white)
-        ).setZValue(Z_BG)
+        )
+        if qGraphicsRectItem:
+            qGraphicsRectItem.setZValue(Z_BG)
 
         layout = self.config.get("layout", {})
         assets = self.config.get("assets", {})
@@ -348,7 +355,7 @@ class MainWindow(QMainWindow):
                     Qt.AspectRatioMode.IgnoreAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
-                item = QGraphicsPixmapItem(pix)
+                item = ScalableImageItem(pix)
                 item.setZValue(Z_BG)
                 self.scene.addItem(item)
                 self.scene_items["bg"] = item
@@ -366,7 +373,7 @@ class MainWindow(QMainWindow):
                     Qt.TransformationMode.SmoothTransformation
                 )
 
-            item = QGraphicsPixmapItem(pix)
+            item = ScalableImageItem(pix)
             saved_pos = layout.get("box_pos")
             if saved_pos:
                 item.setPos(saved_pos[0], saved_pos[1])
@@ -495,7 +502,7 @@ class MainWindow(QMainWindow):
 
     def on_name_changed(self, text):
         self.config.setdefault("meta", {})["name"] = text
-        if self.scene_items["name_text"]:
+        if isinstance(self.scene_items["name_text"], ResizableTextItem):
             self.scene_items["name_text"].update_content(text=text)
 
     def on_style_changed(self):
@@ -507,12 +514,12 @@ class MainWindow(QMainWindow):
         style["text_color"] = pp.btn_text_color.current_color
         style["name_color"] = pp.btn_name_color.current_color
 
-        if self.scene_items["main_text"]:
+        if isinstance(self.scene_items["main_text"], ResizableTextItem):
             self.scene_items["main_text"].update_content(
                 size=style["font_size"],
                 color=style["text_color"]
             )
-        if self.scene_items["name_text"]:
+        if isinstance(self.scene_items["name_text"], ResizableTextItem):
             self.scene_items["name_text"].update_content(
                 size=style["name_font_size"],
                 color=style["name_color"]
@@ -920,12 +927,12 @@ class MainWindow(QMainWindow):
             item = self.scene_items["box"]
             layout["box_pos"] = [int(item.x()), int(item.y())]
 
-        if self.scene_items["name_text"]:
+        if isinstance(self.scene_items["name_text"], ResizableTextItem):
             item = self.scene_items["name_text"]
             top_left = item.mapToScene(item.rect().topLeft())
             layout["name_pos"] = [int(top_left.x()), int(top_left.y())]
 
-        if self.scene_items["main_text"]:
+        if isinstance(self.scene_items["main_text"], ResizableTextItem):
             item = self.scene_items["main_text"]
             rect = item.rect()
             p1 = item.mapToScene(rect.topLeft())
@@ -945,7 +952,10 @@ class MainWindow(QMainWindow):
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=4)
-            self.statusBar().showMessage(f"已保存: {self.current_char_id}", 3000)
+            statusBar = self.statusBar()
+            if not statusBar:
+               raise RuntimeError("Status bar is not available") 
+            statusBar.showMessage(f"已保存: {self.current_char_id}", 3000)
         except Exception as e:
             QMessageBox.critical(self, "保存失败", str(e))
 

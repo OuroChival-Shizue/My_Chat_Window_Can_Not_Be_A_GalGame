@@ -4,5 +4,8 @@ keyboard>=0.13.5,<0.14
 pyperclip>=1.8.2,<2.0
 pywin32>=306
 
-# GUI configurator
+# # GUI configurator
 PyQt6>=6.6,<6.8
+# # Explicit Qt runtime + SIP (wheel with DLLs)
+PyQt6-Qt6>=6.6,<6.8
+PyQt6-sip>=13.8
