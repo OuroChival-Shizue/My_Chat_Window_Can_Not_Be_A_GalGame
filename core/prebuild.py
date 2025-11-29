@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - fallback for standalone runs
         return layout or {}
 
 def _load_render_preferences() -> Tuple[Tuple[int, int], str, str, int]:
-    cfg = load_global_config() or {}
+    cfg: dict = load_global_config() or {}
     render = cfg.get("render", {})
     canvas = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
     cache_format = str(render.get("cache_format", "jpeg")).lower()
@@ -189,11 +189,11 @@ def _cache_is_complete(
     meta = _load_cache_meta(char_id, cache_path)
     if not meta:
         return False
-    if int(meta.get("portrait_count", -1)) != len(portraits):
+    if int(meta.get("portrait_count", -1)) != len(portraits): # type: ignore
         return False
-    if int(meta.get("background_count", -1)) != len(backgrounds):
+    if int(meta.get("background_count", -1)) != len(backgrounds): # type: ignore
         return False
-    if tuple(meta.get("canvas_size", [])) != CANVAS_SIZE:
+    if tuple(meta.get("canvas_size", [])) != CANVAS_SIZE: # type: ignore
         return False
     if meta.get("cache_format") != CACHE_FORMAT:
         return False
@@ -243,13 +243,13 @@ def _prepare_background_images(
                 img = Image.open(src_path).convert("RGBA")
 
             if img.size != CANVAS_SIZE:
-                img = img.resize(CANVAS_SIZE, Image.LANCZOS)
+                img = img.resize(CANVAS_SIZE, Image.Resampling.LANCZOS)
 
             ensure_dir(pre_scaled_dir)
             img.save(pre_scaled_path, "PNG", optimize=True)
 
         if img.size != CANVAS_SIZE:
-            img = img.resize(CANVAS_SIZE, Image.LANCZOS)
+            img = img.resize(CANVAS_SIZE, Image.Resampling.LANCZOS)
 
         result[name] = img
         _notify_progress(
@@ -385,7 +385,7 @@ def _scale_box_to_canvas(box_img: Image.Image) -> Image.Image:
     if box_img.width != canvas_w:
         scale = canvas_w / box_img.width
         new_h = int(box_img.height * scale)
-        box_img = box_img.resize((canvas_w, new_h), Image.LANCZOS)
+        box_img = box_img.resize((canvas_w, new_h), Image.Resampling.LANCZOS)
     return box_img
 
 

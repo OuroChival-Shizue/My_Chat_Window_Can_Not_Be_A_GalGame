@@ -2,7 +2,8 @@
 """支持拖拽导入和右键删除的资源列表"""
 from PyQt6.QtWidgets import QListWidget, QMenu
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QAction, QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QAction, QDragEnterEvent, QDropEvent, QContextMenuEvent
+
 
 
 class AssetListWidget(QListWidget):
@@ -16,23 +17,27 @@ class AssetListWidget(QListWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(QListWidget.DragDropMode.DropOnly)
 
-    def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
+    def dragEnterEvent(self, e: QDragEnterEvent): # pyright: ignore[reportIncompatibleMethodOverride]
+        mime = e.mimeData()
+        if e and mime:
+            if mime.hasUrls():
+                e.accept()
 
-    def dropEvent(self, event: QDropEvent):
-        for url in event.mimeData().urls():
-            path = url.toLocalFile()
-            if path.lower().endswith(('.png', '.jpg', '.jpeg')):
-                self.fileDropped.emit(path)
-
-    def contextMenuEvent(self, event):
-        item = self.itemAt(event.pos())
+        e.ignore()
+            
+    def dropEvent(self, e: QDropEvent): # pyright: ignore[reportIncompatibleMethodOverride]
+        mime = e.mimeData()
+        if mime and mime.hasUrls():
+            for url in mime.urls():
+                path = url.toLocalFile()
+                if path.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    self.fileDropped.emit(path)
+                    
+    def contextMenuEvent(self, e: QContextMenuEvent): # pyright: ignore[reportIncompatibleMethodOverride]
+        item = self.itemAt(e.pos())
         if item:
             menu = QMenu(self)
             delete_action = QAction("删除此文件", self)
             delete_action.triggered.connect(lambda: self.deleteRequested.emit(item.text()))
             menu.addAction(delete_action)
-            menu.exec(event.globalPos())
+            menu.exec(e.globalPos())

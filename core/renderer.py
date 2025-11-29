@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - fallback for standalone runs
         return layout or {}
 
 def _load_render_config() -> Tuple[Tuple[int, int], str, str, bool]:
-    cfg = load_global_config() or {}
+    cfg:dict = load_global_config() or {}
     render = cfg.get("render", {})
     canvas_size = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
     cache_format = str(render.get("cache_format", "jpeg")).lower()
@@ -236,7 +236,7 @@ class CharacterRenderer:
     def _resize_to_canvas(self, img: Image.Image) -> Image.Image:
         if img.size == self.canvas_size:
             return img
-        return img.resize(self.canvas_size, Image.LANCZOS)
+        return img.resize(self.canvas_size, Image.Resampling.LANCZOS)
 
     def _fit_dialog_box_to_canvas(self, box_img: Image.Image) -> Tuple[Image.Image, Tuple[int, int]]:
         """Resize dialog box to canvas width and bottom align."""

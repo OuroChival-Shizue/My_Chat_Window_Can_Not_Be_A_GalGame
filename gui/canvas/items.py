@@ -4,9 +4,11 @@
 - ResizableTextItem: 可拖动、可调整大小的文本框
 - ScalableImageItem: 支持滚轮缩放的图片
 """
-from typing import List
+from typing import List, Optional
 
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsItem
+from PyQt6.QtWidgets import (QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsItem,
+                             QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QGraphicsSceneWheelEvent
+)
 from PyQt6.QtCore import Qt, QRectF, QPointF
 from PyQt6.QtGui import QPixmap, QColor, QPen, QBrush, QFont, QPainter
 
@@ -56,33 +58,28 @@ class ResizableTextItem(QGraphicsRectItem):
         self._start_mouse_pos = QPointF()
         self._start_rect = QRectF()
 
-    def update_content(
-        self,
-        text: str = None,
-        color: List[int] = None,
-        size: int = None
-    ):
-        if text is not None:
-            self.preview_text = text
-        if color is not None:
-            self.text_color = QColor(*color)
-        if size is not None:
-            self.font_size = size
+    def update_content(self, text: str|None = None, color: List[int]|None = None, size: int|None = None):
+        if text is not None: self.preview_text = text
+        if color is not None: self.text_color = QColor(*color)
+        if size is not None: self.font_size = size
         self.update()
 
-    def hoverMoveEvent(self, event):
-        if self.isSelected():
+    def hoverMoveEvent(self, event: Optional[QGraphicsSceneHoverEvent]):
+        if self.isSelected() and event:
             direction = self._hit_test(event.pos())
             self._update_cursor(direction)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
         super().hoverMoveEvent(event)
 
-    def hoverLeaveEvent(self, event):
+    def hoverLeaveEvent(self, event: Optional[QGraphicsSceneHoverEvent]):
         self.setCursor(Qt.CursorShape.ArrowCursor)
         super().hoverLeaveEvent(event)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: Optional[QGraphicsSceneMouseEvent]):
+        if not event:
+            super().mousePressEvent(event)
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.pos()
             direction = self._hit_test(pos)
@@ -100,7 +97,10 @@ class ResizableTextItem(QGraphicsRectItem):
         else:
             super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: Optional[QGraphicsSceneMouseEvent]):
+        if not event:
+            super().mouseMoveEvent(event)
+            return
         if self._state == self.STATE_RESIZE:
             delta = event.scenePos() - self._start_mouse_pos
             new_rect = QRectF(self._start_rect)
@@ -119,7 +119,10 @@ class ResizableTextItem(QGraphicsRectItem):
         else:
             super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: Optional[QGraphicsSceneMouseEvent]):
+        if not event:
+            super().mouseReleaseEvent(event)
+            return
         self._state = self.STATE_IDLE
         self._resize_dir = self.DIR_NONE
         self._update_cursor(self._hit_test(event.pos()))
@@ -158,7 +161,10 @@ class ResizableTextItem(QGraphicsRectItem):
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-    def paint(self, painter: QPainter, option, widget=None) -> None:
+    def paint(self, painter: Optional[QPainter], option=None, widget=None) -> None:
+        if not painter:
+            super().paint(painter, option, widget)
+            return
         pen_color = QColor(0, 120, 215) if self.isSelected() else QColor(150, 150, 150, 100)
         width = 2 if self.isSelected() else 1
         painter.setPen(QPen(pen_color, width, Qt.PenStyle.DashLine))
@@ -191,7 +197,10 @@ class ScalableImageItem(QGraphicsPixmapItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
 
-    def wheelEvent(self, event) -> None:
+    def wheelEvent(self, event: Optional[QGraphicsSceneWheelEvent]) -> None:
+        if not event:
+            super().wheelEvent(event)
+            return
         if self.isSelected():
             factor = 1.05 if event.delta() > 0 else 0.95
             self.setScale(max(0.1, min(self.scale() * factor, 5.0)))

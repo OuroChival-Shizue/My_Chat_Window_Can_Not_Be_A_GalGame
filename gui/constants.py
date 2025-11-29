@@ -2,17 +2,17 @@
 """
 全局常量和画布配置管理
 """
-from typing import Tuple, List
+from typing import Any, Dict, Tuple, List
 
 # --- 尝试导入后端模块 ---
 try:
-    from core.utils import load_global_config, save_global_config, normalize_layout
+    from core.utils import load_global_config, save_global_config, normalize_layout # pyright: ignore[reportAssignmentType]
     from core.renderer import CharacterRenderer
     from core.prebuild import prebuild_character
 except ImportError:
     print("Warning: Core modules not found. Some features may not work.")
-    def load_global_config(): return {}
-    def save_global_config(cfg): pass
+    def load_global_config() -> Dict[str, Any]: return {}
+    def save_global_config(cfg: Dict[str, Any]) -> None: pass
     def normalize_layout(layout, canvas): return layout or {}
     CharacterRenderer = None
     prebuild_character = None
