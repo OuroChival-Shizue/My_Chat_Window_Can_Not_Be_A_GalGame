@@ -1,11 +1,10 @@
 import os
 import json
-import sys
 
 BASE_PATH = "assets"
 CHAR_DIR = os.path.join(BASE_PATH, "characters")
 
-def sync_character(char_id):
+def sync_character(char_id: str):
     char_root = os.path.join(CHAR_DIR, char_id)
     config_path = os.path.join(char_root, "config.json")
     

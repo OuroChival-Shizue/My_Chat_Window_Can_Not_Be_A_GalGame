@@ -1,7 +1,7 @@
 import keyboard
 import win32gui
 import threading
-from typing import Callable, Optional, List
+from typing import Any, Callable, Optional, List
 
 from .utils import load_global_config
 
@@ -14,7 +14,7 @@ class InputListener:
         config = load_global_config()
         target_apps = config.get("target_apps", [])
         self.target_apps: List[str] = target_apps if isinstance(target_apps, list) else []
-        self.on_submit: Optional[Callable] = None
+        self.on_submit: Optional[Callable[[], None]] = None
         self.on_switch_expression: Optional[Callable[[str], None]] = None
 
     def is_target_window_active(self) -> bool:
@@ -29,7 +29,7 @@ class InputListener:
             pass
         return False
 
-    def start(self, submit_callback: Callable, switch_callback: Callable[[str], None]):
+    def start(self, submit_callback: Callable[[], Any], switch_callback: Callable[[str], None]):
         """启动监听"""
         self.on_submit = submit_callback
         self.on_switch_expression = switch_callback
@@ -49,7 +49,7 @@ class InputListener:
 
         keyboard.wait("esc")
 
-    def _safe_switch(self, key_idx):
+    def _safe_switch(self, key_idx: str):
         """安全的中转函数"""
         if self.on_switch_expression:
             try:
@@ -67,7 +67,8 @@ class InputListener:
         """Enter 被按下时触发"""
         if self.paused:
             # 暂停状态下，直接透传 Enter
-            keyboard.remove_hotkey(self.enter_hotkey)
+            if self.enter_hotkey:
+                keyboard.remove_hotkey(self.enter_hotkey)
             try:
                 keyboard.send("enter")
             finally:
@@ -83,7 +84,8 @@ class InputListener:
                 threading.Thread(target=self._run_submit_async).start()
         else:
             # 非目标软件，透传 Enter
-            keyboard.remove_hotkey(self.enter_hotkey)
+            if self.enter_hotkey:
+                keyboard.remove_hotkey(self.enter_hotkey)
             try:
                 keyboard.send("enter")
             finally:
@@ -94,12 +96,14 @@ class InputListener:
     def _run_submit_async(self):
         """在子线程中执行发送逻辑"""
         try:
-            keyboard.remove_hotkey(self.enter_hotkey)
+            if self.enter_hotkey:
+                keyboard.remove_hotkey(self.enter_hotkey)
         except Exception:
             pass # 可能已经被移除了
 
         try:
-            self.on_submit()
+            if(callable(self.on_submit)):
+                self.on_submit()
         except Exception as e:
             print(f"❌ 发送回调出错: {e}")
         finally:

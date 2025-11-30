@@ -197,7 +197,7 @@ My_Chat_Window.../
 
 * **[makoMako](https://github.com/makoMako)** - 代码优化与功能完善
 * **[IzumiShizuki](https://github.com/IzumiShizuki)** - 代码贡献与问题修复
-
+* **[ProjektMing](https://github.com/ProjektMing)** - 代码质量提升和健壮性改进
 ---
 
 ## 📄 开源协议
