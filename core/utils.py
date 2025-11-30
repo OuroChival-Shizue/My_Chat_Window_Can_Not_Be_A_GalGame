@@ -20,16 +20,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v",
     },
-    "target_apps": [
-        "QQ",
-        "微信",
-        "WeChat",
-        "Discord",
-        "Telegram",
-        "钉钉",
-        "DingTalk",
-        "Tim",
-    ],
     "render": DEFAULT_RENDER_CONFIG,
 }
 
@@ -48,7 +38,6 @@ def load_global_config() -> Dict[str, Any]:
     merged = DEFAULT_CONFIG.copy()
     merged.update(config)
 
-    _ensure_list(merged, "target_apps", DEFAULT_CONFIG["target_apps"])
     _ensure_dict(merged, "render", DEFAULT_RENDER_CONFIG)
     
     # 确保 trigger_hotkey 存在
@@ -108,11 +97,6 @@ def normalize_layout(
         )
 
     return normalized
-
-
-def _ensure_list(config: Dict[str, Any], key: str, fallback: List[Any]) -> None:
-    if key not in config or not isinstance(config[key], list):
-        config[key] = list(fallback)
 
 
 def _ensure_dict(config: Dict[str, Any], key: str, fallback: Dict[str, Any]) -> None:

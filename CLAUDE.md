@@ -123,7 +123,7 @@ graph TB
 | 文件             | 核心类/函数                                      | 职责                                             |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------ |
 | `engine.py`    | `GalGameEngine`                                | 协调监听器、渲染器、剪贴板，**不自动发送** |
-| `listener.py`  | `InputListener`                                | **可配置快捷键**、热重载、目标软件识别     |
+| `listener.py`  | `InputListener`                                | **可配置快捷键**、热重载、暂停切换         |
 | `renderer.py`  | `CharacterRenderer`                            | 加载资源、合成图像、绘制文字                     |
 | `clipboard.py` | `get_text()`, `set_image()`                  | Win32 剪贴板读写                                 |
 | `prebuild.py`  | `prebuild_character()`                         | 生成立绘×背景组合缓存                           |
@@ -349,7 +349,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v",
     },
-    "target_apps": ["QQ", "微信", "Discord", ...],
     "render": {
         "canvas_size": [2560, 1440],
         "cache_format": "jpeg",
@@ -467,7 +466,6 @@ def reload_config(self):
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v"
     },
-    "target_apps": ["QQ", "微信", "WeChat", "Discord", "Telegram", "钉钉", "Tim"],
     "render": {
         "canvas_size": [1920, 1080],
         "cache_format": "jpeg",
@@ -500,7 +498,7 @@ main.py → GalGameEngine
       ├─ 注册 Ctrl+F5 → reload_config()  # 热重载
       ├─ 注册 Ctrl+F12 → toggle_pause()
       ├─ 注册 Alt+1~9 → 切换表情
-      └─ trigger_hotkey 触发 (目标软件内):
+      └─ trigger_hotkey 触发:
           ├─ Ctrl+A, Ctrl+X 提取文本
           ├─ renderer.render(text, portrait_key, bg_key)
           ├─ set_image(pil_img)      # 写入剪贴板

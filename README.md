@@ -159,7 +159,11 @@ My_Chat_Window.../
 ```json
 {
     "current_character": "your_waifu",
-    "target_apps": ["QQ", "微信", "Discord", "Telegram"],
+    "trigger_hotkey": "enter",
+    "global_hotkeys": {
+        "copy_to_clipboard": "ctrl+shift+c",
+        "show_character": "ctrl+shift+v"
+    },
     "render": {
         "canvas_size": [1920, 1080],
         "cache_format": "jpeg",
@@ -170,7 +174,9 @@ My_Chat_Window.../
 
 | 配置项 | 说明 |
 |--------|------|
-| `target_apps` | 监听的聊天软件窗口标题关键词 |
+| `trigger_hotkey` | 触发图片生成的快捷键（支持单键或组合键） |
+| `global_hotkeys.copy_to_clipboard` | 将渲染结果复制到剪贴板的快捷键 |
+| `global_hotkeys.show_character` | 显示角色窗口的快捷键 |
 | `canvas_size` | 渲染分辨率，可在编辑器中切换 |
 | `cache_format` | 缓存格式：`jpeg`（小而快）或 `png`（无损） |
 | `jpeg_quality` | JPEG 质量 (1-100) |
