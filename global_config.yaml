@@ -1,0 +1,9 @@
+current_character: yuraa          # 编辑器启动时默认选择的角色
+trigger_hotkey: ctrl+enter        # 控制台模式下触发图片生成的快捷键
+global_hotkeys:
+  copy_to_clipboard: ctrl+shift+c # 控制台模式: 复制最后一张图到剪贴板
+  show_character: ctrl+shift+v    # 控制台模式: 显示/隐藏角色窗口
+render:
+  cache_format: jpeg              # 预构建缓存格式：jpeg / png
+  jpeg_quality: 90                # cache_format 为 jpeg 时使用的质量
+  use_memory_canvas_cache: true   # 是否在内存缓存画布，减少 IO

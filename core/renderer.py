@@ -1,11 +1,19 @@
 import os
 import json
-from typing import Dict, Optional, Tuple, Any, List
+from typing import Dict, Optional, Tuple, Any, List, Union
 
+import yaml
 from PIL import Image, ImageDraw, ImageFont
 
+FontType = Union[ImageFont.FreeTypeFont, ImageFont.ImageFont]
+
 try:
-    from .utils import load_global_config, normalize_layout, normalize_style
+    from .utils import (
+        load_global_config,
+        normalize_layout,
+        normalize_style,
+        DEFAULT_CANVAS_SIZE
+    )
 except Exception:  # pragma: no cover - fallback for standalone runs
     def load_global_config() -> Dict[str, object]:
         return {}
@@ -16,10 +24,12 @@ except Exception:  # pragma: no cover - fallback for standalone runs
     def normalize_style(style):
         return style or {}
 
+    DEFAULT_CANVAS_SIZE = (2560, 1440)
+
 def _load_render_config() -> Tuple[Tuple[int, int], str, str, bool]:
     cfg:dict = load_global_config() or {}
     render = cfg.get("render", {})
-    canvas_size = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
+    canvas_size = DEFAULT_CANVAS_SIZE
     cache_format = str(render.get("cache_format", "jpeg")).lower()
     if cache_format not in {"jpeg", "png"}:
         cache_format = "jpeg"
@@ -35,7 +45,7 @@ class CharacterRenderer:
         self.char_id = char_id
         self.base_path = base_path
         self.char_root = os.path.join(base_path, "characters", char_id)
-        self.font_cache: Dict[Tuple[int, Optional[str]], ImageFont.FreeTypeFont| ImageFont.ImageFont] = {}
+        self.font_cache: Dict[Tuple[int, Optional[str]], FontType] = {}
         self.default_font_name = "LXGWWenKai-Medium.ttf"
         self.default_font_path: Optional[str] = os.path.join(
             self.base_path, "common", "fonts", self.default_font_name
@@ -49,13 +59,22 @@ class CharacterRenderer:
 
         print(f"--- 开始加载角色 {char_id} ---")
 
-        config_path = os.path.join(self.char_root, "config.json")
+        yaml_path = os.path.join(self.char_root, "config.yaml")
+        legacy_path = os.path.join(self.char_root, "config.json")
+        config_path = yaml_path if os.path.exists(yaml_path) else legacy_path
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"未找到角色配置 {config_path}")
 
         with open(config_path, "r", encoding="utf-8") as f:
-            self.config = json.load(f)
+            if config_path.endswith((".yaml", ".yml")):
+                self.config = yaml.safe_load(f) or {}
+            else:
+                self.config = json.load(f)
         layout_raw = self.config.setdefault("layout", {})
+        stored_size = self._extract_canvas_size(layout_raw.get("_canvas_size"))
+        if stored_size:
+            self.canvas_size = stored_size
+            self._scaled_suffix = f"{self.canvas_size[0]}x{self.canvas_size[1]}"
         self.layout = normalize_layout(layout_raw, self.canvas_size)
         self.layout["_canvas_size"] = [self.canvas_size[0], self.canvas_size[1]]
         self.config["layout"] = self.layout
@@ -268,8 +287,8 @@ class CharacterRenderer:
 
         font_text_path = self._resolve_font_path(style.get("font_file"))
         font_name_path = self._resolve_font_path(style.get("name_font_file"))
-        font_text: ImageFont.ImageFont | ImageFont.FreeTypeFont = self._get_font(text_size, font_text_path)
-        font_name: ImageFont.ImageFont | ImageFont.FreeTypeFont = self._get_font(name_size, font_name_path)
+        font_text: FontType = self._get_font(text_size, font_text_path)
+        font_name: FontType = self._get_font(name_size, font_name_path)
 
         layout = self.layout
         text_area = layout.get("text_area", [100, 800, 1800, 1000])
@@ -329,7 +348,7 @@ class CharacterRenderer:
         draw: ImageDraw.ImageDraw,
         speaker_name: Optional[str],
         name_pos: Tuple[float, float],
-        font: ImageFont.ImageFont | ImageFont.FreeTypeFont,
+        font: FontType,
         color: Tuple[int, int, int],
     ) -> None:
         if speaker_name:
@@ -394,7 +413,7 @@ class CharacterRenderer:
 
         return rendered
 
-    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: ImageFont.ImageFont| ImageFont.FreeTypeFont, max_width: int):
+    def _wrap_text(self, text: str, draw: ImageDraw.ImageDraw, font: FontType, max_width: int):
         lines = []
         paragraphs = text.split("\n") if text else [""]
         for para in paragraphs:
@@ -412,7 +431,7 @@ class CharacterRenderer:
                 lines.append(current)
         return lines
 
-    def _line_height(self, font: ImageFont.ImageFont| ImageFont.FreeTypeFont) -> int | float:
+    def _line_height(self, font: FontType) -> Union[int, float]:
         bbox = font.getbbox("测试")
         return (bbox[3] - bbox[1]) + 4
 
@@ -425,6 +444,21 @@ class CharacterRenderer:
         ):
             return tuple(max(0, min(255, int(v))) for v in value)  # type: ignore[return-value]
         return fallback
+
+    @staticmethod
+    def _extract_canvas_size(value: Any) -> Optional[Tuple[int, int]]:
+        if (
+            isinstance(value, (list, tuple))
+            and len(value) == 2
+        ):
+            try:
+                w = int(value[0])
+                h = int(value[1])
+            except Exception:
+                return None
+            if w > 0 and h > 0:
+                return w, h
+        return None
 
     def _resolve_font_path(self, font_file: Optional[str]) -> Optional[str]:
         """Resolve a font path with fallbacks."""
@@ -444,7 +478,7 @@ class CharacterRenderer:
             return self.default_font_path
         return None
 
-    def _get_font(self, size: int, font_path: Optional[str]) -> ImageFont.ImageFont| ImageFont.FreeTypeFont:
+    def _get_font(self, size: int, font_path: Optional[str]) -> FontType:
         """Load font with caching; fallback to default when missing."""
         cache_key = (size, font_path)
         if cache_key in self.font_cache:

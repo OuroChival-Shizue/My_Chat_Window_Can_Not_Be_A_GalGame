@@ -58,7 +58,12 @@ class ResizableTextItem(QGraphicsRectItem):
         self._start_mouse_pos = QPointF()
         self._start_rect = QRectF()
 
-    def update_content(self, text: str|None = None, color: List[int]|None = None, size: int|None = None):
+    def update_content(
+        self,
+        text: Optional[str] = None,
+        color: Optional[List[int]] = None,
+        size: Optional[int] = None,
+    ):
         if text is not None: self.preview_text = text
         if color is not None: self.text_color = QColor(*color)
         if size is not None: self.font_size = size

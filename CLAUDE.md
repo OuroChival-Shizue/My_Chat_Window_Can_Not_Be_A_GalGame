@@ -350,7 +350,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "show_character": "ctrl+shift+v",
     },
     "render": {
-        "canvas_size": [2560, 1440],
         "cache_format": "jpeg",
         "jpeg_quality": 90,
         "use_memory_canvas_cache": True
@@ -358,7 +357,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 ```
 
-- `normalize_style()`：为每个角色的 `style` 字段补齐 `mode`、`text_wrapper`、`basic`、`advanced` 结构，兼容旧版 `font_size/name_color` 写法，并自动处理台词前后缀与高级名字 JSON。
+- `normalize_style()`：为每个角色的 `style` 字段补齐 `mode`、`text_wrapper`、`basic`、`advanced` 结构，兼容旧版 `font_size/name_color` 写法，并自动处理台词前后缀与高级名字 YAML。
 
 ### `engine.py` - 主引擎 (v2.2 更新) ⭐
 
@@ -469,13 +468,14 @@ def reload_config(self):
         "show_character": "ctrl+shift+v"
     },
     "render": {
-        "canvas_size": [1920, 1080],
         "cache_format": "jpeg",
         "jpeg_quality": 90,
         "use_memory_canvas_cache": true
     }
 }
 ```
+
+> 画布分辨率改由各角色 `config.json` 中的 `layout._canvas_size` 控制，切换角色时会自动加载对应分辨率。
 
 ### 角色 `style` 结构 (`assets/characters/<id>/config.json`)
 
@@ -510,7 +510,7 @@ def reload_config(self):
 ```
 
 - GUI 属性面板新增「台词前后缀」组合框，可选 `none` / 「」「」 / 『』『』 / 自定义前后缀，并直接写入 `text_wrapper`。
-- 勾选“启用高级名称 JSON”后会展开输入框，可编辑 `name_layers` 并点击“应用 JSON”即时保存，渲染器会按相对坐标叠加多层文本。
+- 勾选“启用高级名称 YAML”后会展开输入框，可编辑 `name_layers` 并点击“应用 YAML”即时保存，渲染器会按相对坐标叠加多层文本。
 
 ### 快捷键格式说明
 

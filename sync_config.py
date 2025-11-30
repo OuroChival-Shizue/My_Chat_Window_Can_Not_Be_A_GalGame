@@ -1,20 +1,29 @@
 import os
 import json
 
+import yaml
+
+from core.utils import dump_yaml_inline
+
 BASE_PATH = "assets"
 CHAR_DIR = os.path.join(BASE_PATH, "characters")
 
 def sync_character(char_id: str):
     char_root = os.path.join(CHAR_DIR, char_id)
-    config_path = os.path.join(char_root, "config.json")
+    yaml_path = os.path.join(char_root, "config.yaml")
+    legacy_path = os.path.join(char_root, "config.json")
+    config_path = yaml_path if os.path.exists(yaml_path) else legacy_path
     
     if not os.path.exists(config_path):
-        print(f"⚠️ [{char_id}] 缺少 config.json，跳过")
+        print(f"⚠️ [{char_id}] 缺少配置文件，跳过")
         return
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
+            if config_path.endswith((".yaml", ".yml")):
+                config = yaml.safe_load(f) or {}
+            else:
+                config = json.load(f)
     except Exception as e:
         print(f"❌ [{char_id}] 配置文件损坏: {e}")
         return
@@ -57,8 +66,8 @@ def sync_character(char_id: str):
 
     if modified:
         try:
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, ensure_ascii=False, indent=4)
+            with open(yaml_path, "w", encoding="utf-8") as f:
+                dump_yaml_inline(config, f)
             print(f"✅ [{char_id}] 配置已修复并保存")
         except Exception as e:
             print(f"❌ [{char_id}] 保存失败: {e}")

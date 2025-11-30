@@ -1,8 +1,9 @@
 import hashlib
 import json
 import os
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Any, Optional
 
+import yaml
 from PIL import Image
 
 try:
@@ -14,18 +15,19 @@ except Exception:  # pragma: no cover - fallback for standalone runs
     def normalize_layout(layout, canvas_size):
         return layout or {}
 
-def _load_render_preferences() -> Tuple[Tuple[int, int], str, str, int]:
+DEFAULT_CANVAS_SIZE: Tuple[int, int] = (2560, 1440)
+
+def _load_render_preferences() -> Tuple[str, str, int]:
     cfg: dict = load_global_config() or {}
     render = cfg.get("render", {})
-    canvas = tuple(render.get("canvas_size", (2560, 1440)))  # type: ignore[arg-type]
     cache_format = str(render.get("cache_format", "jpeg")).lower()
     if cache_format not in {"jpeg", "png"}:
         cache_format = "jpeg"
     cache_ext = ".jpg" if cache_format == "jpeg" else ".png"
     jpeg_quality = int(render.get("jpeg_quality", 90))
-    return canvas, cache_format, cache_ext, jpeg_quality
+    return cache_format, cache_ext, jpeg_quality
 
-CANVAS_SIZE: Tuple[int, int] = (2560, 1440)
+CANVAS_SIZE: Tuple[int, int] = DEFAULT_CANVAS_SIZE
 CACHE_FORMAT: str = "jpeg"
 CACHE_EXT: str = ".jpg"
 JPEG_QUALITY: int = 90
@@ -33,9 +35,8 @@ SCALED_TAG: str = "@2560x1440"
 
 
 def _refresh_render_preferences() -> None:
-    global CANVAS_SIZE, CACHE_FORMAT, CACHE_EXT, JPEG_QUALITY, SCALED_TAG
-    CANVAS_SIZE, CACHE_FORMAT, CACHE_EXT, JPEG_QUALITY = _load_render_preferences()
-    SCALED_TAG = f"@{CANVAS_SIZE[0]}x{CANVAS_SIZE[1]}"
+    global CACHE_FORMAT, CACHE_EXT, JPEG_QUALITY
+    CACHE_FORMAT, CACHE_EXT, JPEG_QUALITY = _load_render_preferences()
 
 
 _refresh_render_preferences()
@@ -47,13 +48,19 @@ SCALED_TAG = f"@{CANVAS_SIZE[0]}x{CANVAS_SIZE[1]}"
 ProgressCallback = Callable[[str, int, int, str], None]
 
 
+def _apply_canvas_size(canvas: Tuple[int, int]) -> None:
+    global CANVAS_SIZE, SCALED_TAG
+    CANVAS_SIZE = canvas
+    SCALED_TAG = f"@{CANVAS_SIZE[0]}x{CANVAS_SIZE[1]}"
+
+
 def ensure_dir(path: str) -> None:
     if not os.path.exists(path):
         os.makedirs(path)
 
 
 def _notify_progress(
-    callback: ProgressCallback | None,
+    callback: Optional[ProgressCallback],
     event: str,
     current: int,
     total: int,
@@ -75,6 +82,62 @@ def _list_images(folder: str) -> List[str]:
         for f in os.listdir(folder)
         if f.lower().endswith((".png", ".jpg", ".jpeg"))
     )
+
+def _character_config_path(char_root: str) -> Optional[str]:
+    yaml_path = os.path.join(char_root, "config.yaml")
+    legacy_path = os.path.join(char_root, "config.json")
+    if os.path.exists(yaml_path):
+        return yaml_path
+    if os.path.exists(legacy_path):
+        return legacy_path
+    return None
+
+
+def _load_character_config(char_id: str, base_path: str) -> Dict[str, Any]:
+    char_root = os.path.join(base_path, "characters", char_id)
+    config_path = _character_config_path(char_root)
+    if not config_path:
+        return {}
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            if config_path.endswith((".yaml", ".yml")):
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+            return data or {}
+    except Exception:
+        return {}
+
+def _extract_canvas_size(value: Any) -> Optional[Tuple[int, int]]:
+    if (
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+    ):
+        try:
+            w = int(value[0])
+            h = int(value[1])
+        except Exception:
+            return None
+        if w > 0 and h > 0:
+            return w, h
+    return None
+
+def _resolve_canvas_size(layout: Dict[str, Any]) -> Tuple[int, int]:
+    size = _extract_canvas_size(layout.get("_canvas_size"))
+    if size:
+        return size
+    return DEFAULT_CANVAS_SIZE
+
+def _configure_canvas_for_character(
+    char_id: str,
+    base_path: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    data = config if config is not None else _load_character_config(char_id, base_path)
+    layout = data.get("layout", {}) if isinstance(data, dict) else {}
+    canvas = _resolve_canvas_size(layout if isinstance(layout, dict) else {})
+    _apply_canvas_size(canvas)
+    return data if isinstance(data, dict) else {}
 
 
 def _collect_background_entries(char_id: str, base_path: str) -> List[Tuple[str, str]]:
@@ -121,8 +184,9 @@ def _compute_source_signature(char_id: str, base_path: str) -> str:
     h.update(CACHE_FORMAT.encode("utf-8"))
 
     char_root = os.path.join(base_path, "characters", char_id)
-    config_path = os.path.join(char_root, "config.json")
-    _update_hash_with_file(h, config_path)
+    config_path = _character_config_path(char_root)
+    if config_path:
+        _update_hash_with_file(h, config_path)
 
     portrait_dir = os.path.join(char_root, "portrait")
     for file in _list_images(portrait_dir):
@@ -215,7 +279,7 @@ def _fit_dialog_box_to_canvas(box_img: Image.Image) -> Tuple[Image.Image, Tuple[
 def _prepare_background_images(
     char_id: str,
     base_path: str,
-    progress: ProgressCallback | None,
+    progress: Optional[ProgressCallback],
 ) -> Dict[str, Image.Image]:
     """Load/scale backgrounds and persist them into assets/pre_scaled."""
     entries = _collect_background_entries(char_id, base_path)
@@ -268,22 +332,27 @@ def prebuild_character(
     base_path: str = BASE_PATH,
     cache_path: str = CACHE_PATH,
     force: bool = False,
-    progress: ProgressCallback | None = None,
+    progress: Optional[ProgressCallback] = None,
 ) -> None:
     _refresh_render_preferences()
     print(f"🚧 开始预处理角色: {char_id}")
     _notify_progress(progress, "start", 0, 0, f"开始预处理角色 {char_id}")
 
     char_root = os.path.join(base_path, "characters", char_id)
-    config_path = os.path.join(char_root, "config.json")
-    if not os.path.exists(config_path):
-        msg = f"❌ 找不到配置 {config_path}"
+    config_path = _character_config_path(char_root)
+    if not config_path:
+        expected = os.path.join(char_root, "config.yaml")
+        msg = f"❌ 找不到配置 {expected}"
         print(msg)
         _notify_progress(progress, "error", 0, 0, msg)
         return
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+    config = _configure_canvas_for_character(char_id, base_path)
+    if not config:
+        msg = f"❌ 无法读取配置 {config_path}"
+        print(msg)
+        _notify_progress(progress, "error", 0, 0, msg)
+        return
 
     layout = normalize_layout(config.get("layout", {}), CANVAS_SIZE)
     config["layout"] = layout
@@ -410,6 +479,7 @@ def ensure_character_cache(
     cache_path: str = CACHE_PATH,
 ) -> None:
     _refresh_render_preferences()
+    _configure_canvas_for_character(char_id, base_path)
     portrait_dir = os.path.join(base_path, "characters", char_id, "portrait")
     portraits = _list_images(portrait_dir)
     backgrounds = [name for name, _ in _collect_background_entries(char_id, base_path)]

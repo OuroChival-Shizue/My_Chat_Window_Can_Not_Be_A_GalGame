@@ -165,7 +165,6 @@ My_Chat_Window.../
         "show_character": "ctrl+shift+v"
     },
     "render": {
-        "canvas_size": [1920, 1080],
         "cache_format": "jpeg",
         "jpeg_quality": 90
     },
@@ -204,12 +203,13 @@ My_Chat_Window.../
 | `trigger_hotkey` | 触发图片生成的快捷键（支持单键或组合键） |
 | `global_hotkeys.copy_to_clipboard` | 将渲染结果复制到剪贴板的快捷键 |
 | `global_hotkeys.show_character` | 显示角色窗口的快捷键 |
-| `canvas_size` | 渲染分辨率，可在编辑器中切换 |
 | `cache_format` | 缓存格式：`jpeg`（小而快）或 `png`（无损） |
 | `jpeg_quality` | JPEG 质量 (1-100) |
 | `style.text_wrapper.type` | 台词前后缀模式：`none`、`preset`（内置「」「」/『』『』）、`custom` |
-| `style.mode` | 名字样式模式：`basic` 使用字号/颜色，`advanced` 启用 JSON 分层 |
-| `style.advanced.name_layers` | 高级名字 JSON，键为角色名，值为图层数组（支持 `{name}` 占位） |
+| `style.mode` | 名字样式模式：`basic` 使用字号/颜色，`advanced` 启用 YAML 分层 |
+| `style.advanced.name_layers` | 高级名字 YAML 片段，键为角色名，值为图层数组（支持 `{name}` 占位） |
+
+> 画布分辨率现由每个角色 `config.json` 的 `layout._canvas_size` 决定，切换角色时会自动加载对应分辨率。
 
 #### 名字高级样式示例
 
@@ -234,7 +234,7 @@ My_Chat_Window.../
 - `font_file`：可选，指定单层使用的字体文件（相对角色目录或绝对路径）。
 - `name_layers` 字典的键为角色名称；若找不到匹配的键，将使用 `default` 作为回退。
 
-> GUI 的属性面板中可以直接切换台词前后缀（「」「」 / 『』『』 / 自定义），并展开“高级名称 JSON”输入框来粘贴上面的结构。
+> GUI 的属性面板中可以直接切换台词前后缀（「」「」 / 『』『』 / 自定义），并展开“高级名称 YAML”输入框来粘贴上面的结构。
 
 ---
 

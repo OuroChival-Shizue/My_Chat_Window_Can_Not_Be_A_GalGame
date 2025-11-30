@@ -3,12 +3,19 @@
 import json
 import os
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple, Mapping
+from typing import Any, Dict, List, Tuple, Mapping, Optional, TextIO
 
-GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), "global_config.json")
+import yaml
+from yaml.representer import SafeRepresenter
+
+GLOBAL_CONFIG_FILENAME = "global_config.yaml"
+LEGACY_GLOBAL_CONFIG_FILENAME = "global_config.json"
+GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), GLOBAL_CONFIG_FILENAME)
+LEGACY_GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), LEGACY_GLOBAL_CONFIG_FILENAME)
+
+DEFAULT_CANVAS_SIZE: Tuple[int, int] = (2560, 1440)
 
 DEFAULT_RENDER_CONFIG: Dict[str, Any] = {
-    "canvas_size": [2560, 1440],
     "cache_format": "jpeg",
     "jpeg_quality": 90,
     "use_memory_canvas_cache": True,
@@ -42,17 +49,60 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "render": DEFAULT_RENDER_CONFIG,
 }
 
+class _InlineSeqDumper(yaml.SafeDumper):
+    pass
+
+def _represent_inline_list(dumper: _InlineSeqDumper, data: List[Any]):
+    inline = (
+        len(data) <= 4
+        and all(isinstance(item, (int, float)) for item in data)
+    )
+    return SafeRepresenter.represent_sequence(
+        dumper,
+        "tag:yaml.org,2002:seq",
+        data,
+        flow_style=inline,
+    )
+
+_InlineSeqDumper.add_representer(list, _represent_inline_list)  # type: ignore[arg-type]
+
+def dump_yaml_inline(data: Any, stream: Optional[TextIO] = None) -> str | None:
+    """
+    Dump YAML with inline lists (e.g. [1, 2, 3]) for better readability.
+    Returns the serialized string when stream is None.
+    """
+    return yaml.dump(
+        data,
+        stream=stream,
+        Dumper=_InlineSeqDumper,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+
+
+def _read_config_file(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if path.endswith((".yaml", ".yml")):
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+            return data or {}
+    except Exception:
+        return {}
 
 
 def load_global_config() -> Dict[str, Any]:
-    """Load global_config.json; create with defaults when missing or invalid."""
+    """Load global_config.yaml (with JSON fallback) and ensure defaults."""
+    source_path = None
     config: Dict[str, Any] = {}
     if os.path.exists(GLOBAL_CONFIG_PATH):
-        try:
-            with open(GLOBAL_CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception:
-            config = {}
+        source_path = GLOBAL_CONFIG_PATH
+        config = _read_config_file(GLOBAL_CONFIG_PATH)
+    elif os.path.exists(LEGACY_GLOBAL_CONFIG_PATH):
+        source_path = LEGACY_GLOBAL_CONFIG_PATH
+        config = _read_config_file(LEGACY_GLOBAL_CONFIG_PATH)
 
     merged = DEFAULT_CONFIG.copy()
     merged.update(config)
@@ -63,7 +113,7 @@ def load_global_config() -> Dict[str, Any]:
     if "trigger_hotkey" not in merged or not merged["trigger_hotkey"]:
         merged["trigger_hotkey"] = DEFAULT_CONFIG["trigger_hotkey"]
 
-    if not os.path.exists(GLOBAL_CONFIG_PATH) or merged != config:
+    if (source_path != GLOBAL_CONFIG_PATH) or merged != config:
         save_global_config(merged)
 
     return merged
@@ -71,13 +121,13 @@ def load_global_config() -> Dict[str, Any]:
 
 
 def save_global_config(config: Dict[str, Any]) -> None:
-    """Persist global config to json file."""
+    """Persist global config to YAML file."""
     with open(GLOBAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=4)
+        dump_yaml_inline(config, f)
 
 
 def normalize_layout(
-    layout: Dict[str, Any] | None,
+    layout: Optional[Dict[str, Any]],
     canvas_size: Tuple[int, int],
 ) -> Dict[str, Any]:
     """
@@ -118,7 +168,7 @@ def normalize_layout(
     return normalized
 
 
-def normalize_style(style: Mapping[str, Any] | None) -> Dict[str, Any]:
+def normalize_style(style: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
     """Normalize style dict for per-character config, keeping backward compatibility."""
     src: Dict[str, Any] = dict(style) if isinstance(style, Mapping) else {}
 
@@ -232,11 +282,11 @@ def _determine_source_canvas_size(
     max_x, max_y = _estimate_layout_extent(layout)
     canvas_w, canvas_h = canvas_size
     if max_x > canvas_w or max_y > canvas_h:
-        return tuple(DEFAULT_RENDER_CONFIG["canvas_size"])  # type: ignore[arg-type]
+        return DEFAULT_CANVAS_SIZE
     return canvas_size
 
 
-def _parse_canvas_size(value: Any) -> Tuple[int, int] | None:
+def _parse_canvas_size(value: Any) -> Optional[Tuple[int, int]]:
     if (
         isinstance(value, (list, tuple))
         and len(value) == 2
