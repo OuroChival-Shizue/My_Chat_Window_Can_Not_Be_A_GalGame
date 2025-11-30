@@ -94,8 +94,6 @@ class GalGameEngine:
         if set_image(image):
             time.sleep(0.1)
             keyboard.send("ctrl+v")
-            time.sleep(1)
-            keyboard.press_and_release("enter")
             print("✅ 已执行粘贴发送指令")
         else:
             print("❌ 图片写入剪贴板失败")

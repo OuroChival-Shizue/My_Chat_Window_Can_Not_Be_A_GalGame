@@ -1,3 +1,5 @@
+# core/utils.py
+
 import json
 import os
 from typing import Any, Dict, List, Tuple
@@ -13,6 +15,7 @@ DEFAULT_RENDER_CONFIG: Dict[str, Any] = {
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "current_character": "yuraa",
+    "trigger_hotkey": "enter",  # 新增：触发生成图片的快捷键
     "global_hotkeys": {
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v",
@@ -31,6 +34,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
+
 def load_global_config() -> Dict[str, Any]:
     """Load global_config.json; create with defaults when missing or invalid."""
     config: Dict[str, Any] = {}
@@ -46,11 +50,16 @@ def load_global_config() -> Dict[str, Any]:
 
     _ensure_list(merged, "target_apps", DEFAULT_CONFIG["target_apps"])
     _ensure_dict(merged, "render", DEFAULT_RENDER_CONFIG)
+    
+    # 确保 trigger_hotkey 存在
+    if "trigger_hotkey" not in merged or not merged["trigger_hotkey"]:
+        merged["trigger_hotkey"] = DEFAULT_CONFIG["trigger_hotkey"]
 
     if not os.path.exists(GLOBAL_CONFIG_PATH) or merged != config:
         save_global_config(merged)
 
     return merged
+
 
 
 def save_global_config(config: Dict[str, Any]) -> None:

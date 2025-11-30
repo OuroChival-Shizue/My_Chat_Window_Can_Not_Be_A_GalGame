@@ -58,7 +58,12 @@ class MainWindow(QMainWindow):
     # =========================================================================
     # 初始化
     # =========================================================================
-
+    def open_settings(self):
+        """打开设置对话框"""
+        from .widgets import SettingsDialog
+        dialog = SettingsDialog(self)
+        dialog.exec()
+        
     def _load_custom_font(self):
         font_path = os.path.join(BASE_PATH, "common", "fonts", "LXGWWenKai-Medium.ttf")
         if os.path.exists(font_path):
@@ -110,6 +115,7 @@ class MainWindow(QMainWindow):
         file_menu = menubar.addMenu("文件 (&File)")
         if file_menu is None:
             raise RuntimeError("File menu is not available")
+        
         action_new = QAction("新建角色 (New Character)", self)
         action_new.setShortcut("Ctrl+N")
         action_new.triggered.connect(self.create_new_character)
@@ -125,6 +131,16 @@ class MainWindow(QMainWindow):
         file_menu.addAction(action_open_dir)
 
         file_menu.addSeparator()
+        
+        # ========== 新增：设置选项 ==========
+        action_settings = QAction("设置 (&Settings)...", self)
+        action_settings.setShortcut("Ctrl+,")
+        action_settings.triggered.connect(self.open_settings)
+        file_menu.addAction(action_settings)
+        # ====================================
+        
+        file_menu.addSeparator()
+        
         action_exit = QAction("退出", self)
         action_exit.triggered.connect(self.close)
         file_menu.addAction(action_exit)
@@ -153,6 +169,7 @@ class MainWindow(QMainWindow):
         action_reload.setShortcut("Ctrl+R")
         action_reload.triggered.connect(self.reload_current_character)
         tools_menu.addAction(action_reload)
+
 
     def _connect_signals(self):
         """连接所有信号槽"""
@@ -845,6 +862,12 @@ class MainWindow(QMainWindow):
     def open_character_folder(self):
         if self.char_root and os.path.exists(self.char_root):
             os.startfile(self.char_root)
+            
+    def open_settings(self):
+        """打开设置对话框"""
+        from .widgets import SettingsDialog
+        dialog = SettingsDialog(self)
+        dialog.exec()
 
     def reload_current_character(self):
         if self.current_char_id:

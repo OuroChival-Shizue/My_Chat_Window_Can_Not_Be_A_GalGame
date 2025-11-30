@@ -22,5 +22,6 @@
         "cache_format": "jpeg",
         "jpeg_quality": 90,
         "use_memory_canvas_cache": true
-    }
+    },
+    "trigger_hotkey": "ctrl+enter"
 }
