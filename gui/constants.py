@@ -4,9 +4,11 @@
 """
 from typing import Any, Dict, Tuple, List
 
+import yaml
+
 # --- 尝试导入后端模块 ---
 try:
-    from core.utils import load_global_config, save_global_config, normalize_layout # pyright: ignore[reportAssignmentType]
+    from core.utils import load_global_config, save_global_config, normalize_layout, normalize_style, dump_yaml_inline  # pyright: ignore[reportAssignmentType]
     from core.renderer import CharacterRenderer
     from core.prebuild import prebuild_character
 except ImportError:
@@ -14,6 +16,9 @@ except ImportError:
     def load_global_config() -> Dict[str, Any]: return {}
     def save_global_config(cfg: Dict[str, Any]) -> None: pass
     def normalize_layout(layout, canvas): return layout or {}
+    def normalize_style(style): return style or {}
+    def dump_yaml_inline(data: Any, stream=None):
+        return yaml.safe_dump(data, stream=stream, allow_unicode=True, sort_keys=False)
     CharacterRenderer = None
     prebuild_character = None
 
@@ -48,24 +53,6 @@ class CanvasConfig:
     _height: int = DEFAULT_CANVAS_SIZE[1]
 
     @classmethod
-    def load_from_global_config(cls) -> Tuple[int, int]:
-        """从 global_config.json 加载画布尺寸"""
-        try:
-            cfg = load_global_config()
-            render_cfg = cfg.get("render", {})
-            size = render_cfg.get("canvas_size")
-            if (
-                isinstance(size, (list, tuple))
-                and len(size) == 2
-                and int(size[0]) > 0
-                and int(size[1]) > 0
-            ):
-                cls._width, cls._height = int(size[0]), int(size[1])
-        except Exception as exc:
-            print(f"⚠️ 读取画布配置失败，采用默认值: {exc}")
-        return cls._width, cls._height
-
-    @classmethod
     def get_size(cls) -> Tuple[int, int]:
         return cls._width, cls._height
 
@@ -83,5 +70,3 @@ class CanvasConfig:
         return cls._height
 
 
-# 初始化时加载配置
-CanvasConfig.load_from_global_config()

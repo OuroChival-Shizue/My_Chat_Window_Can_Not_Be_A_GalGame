@@ -2,15 +2,41 @@
 
 import json
 import os
-from typing import Any, Dict, List, Tuple
+from copy import deepcopy
+from typing import Any, Dict, List, Tuple, Mapping, Optional, TextIO
 
-GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), "global_config.json")
+import yaml
+from yaml.representer import SafeRepresenter
+
+GLOBAL_CONFIG_FILENAME = "global_config.yaml"
+LEGACY_GLOBAL_CONFIG_FILENAME = "global_config.json"
+GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), GLOBAL_CONFIG_FILENAME)
+LEGACY_GLOBAL_CONFIG_PATH = os.path.join(os.getcwd(), LEGACY_GLOBAL_CONFIG_FILENAME)
+
+DEFAULT_CANVAS_SIZE: Tuple[int, int] = (2560, 1440)
 
 DEFAULT_RENDER_CONFIG: Dict[str, Any] = {
-    "canvas_size": [2560, 1440],
     "cache_format": "jpeg",
     "jpeg_quality": 90,
     "use_memory_canvas_cache": True,
+}
+
+DEFAULT_TEXT_WRAPPER: Dict[str, Any] = {
+    "type": "none",  # none | preset | custom
+    "preset": "corner_single",  # corner_single → 「」, corner_double → 『』
+    "prefix": "",
+    "suffix": "",
+}
+
+DEFAULT_BASIC_STYLE: Dict[str, Any] = {
+    "font_size": 40,
+    "text_color": [255, 255, 255],
+    "name_font_size": 32,
+    "name_color": [255, 85, 255],
+}
+
+DEFAULT_ADVANCED_STYLE: Dict[str, Any] = {
+    "name_layers": {}
 }
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -20,42 +46,74 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v",
     },
-    "target_apps": [
-        "QQ",
-        "微信",
-        "WeChat",
-        "Discord",
-        "Telegram",
-        "钉钉",
-        "DingTalk",
-        "Tim",
-    ],
     "render": DEFAULT_RENDER_CONFIG,
 }
 
+class _InlineSeqDumper(yaml.SafeDumper):
+    pass
+
+def _represent_inline_list(dumper: _InlineSeqDumper, data: List[Any]):
+    inline = (
+        len(data) <= 4
+        and all(isinstance(item, (int, float)) for item in data)
+    )
+    return SafeRepresenter.represent_sequence(
+        dumper,
+        "tag:yaml.org,2002:seq",
+        data,
+        flow_style=inline,
+    )
+
+_InlineSeqDumper.add_representer(list, _represent_inline_list)  # type: ignore[arg-type]
+
+def dump_yaml_inline(data: Any, stream: Optional[TextIO] = None) -> str | None:
+    """
+    Dump YAML with inline lists (e.g. [1, 2, 3]) for better readability.
+    Returns the serialized string when stream is None.
+    """
+    return yaml.dump(
+        data,
+        stream=stream,
+        Dumper=_InlineSeqDumper,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+
+
+def _read_config_file(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if path.endswith((".yaml", ".yml")):
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+            return data or {}
+    except Exception:
+        return {}
 
 
 def load_global_config() -> Dict[str, Any]:
-    """Load global_config.json; create with defaults when missing or invalid."""
+    """Load global_config.yaml (with JSON fallback) and ensure defaults."""
+    source_path = None
     config: Dict[str, Any] = {}
     if os.path.exists(GLOBAL_CONFIG_PATH):
-        try:
-            with open(GLOBAL_CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception:
-            config = {}
+        source_path = GLOBAL_CONFIG_PATH
+        config = _read_config_file(GLOBAL_CONFIG_PATH)
+    elif os.path.exists(LEGACY_GLOBAL_CONFIG_PATH):
+        source_path = LEGACY_GLOBAL_CONFIG_PATH
+        config = _read_config_file(LEGACY_GLOBAL_CONFIG_PATH)
 
     merged = DEFAULT_CONFIG.copy()
     merged.update(config)
 
-    _ensure_list(merged, "target_apps", DEFAULT_CONFIG["target_apps"])
     _ensure_dict(merged, "render", DEFAULT_RENDER_CONFIG)
     
     # 确保 trigger_hotkey 存在
     if "trigger_hotkey" not in merged or not merged["trigger_hotkey"]:
         merged["trigger_hotkey"] = DEFAULT_CONFIG["trigger_hotkey"]
 
-    if not os.path.exists(GLOBAL_CONFIG_PATH) or merged != config:
+    if (source_path != GLOBAL_CONFIG_PATH) or merged != config:
         save_global_config(merged)
 
     return merged
@@ -63,13 +121,13 @@ def load_global_config() -> Dict[str, Any]:
 
 
 def save_global_config(config: Dict[str, Any]) -> None:
-    """Persist global config to json file."""
+    """Persist global config to YAML file."""
     with open(GLOBAL_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=4)
+        dump_yaml_inline(config, f)
 
 
 def normalize_layout(
-    layout: Dict[str, Any] | None,
+    layout: Optional[Dict[str, Any]],
     canvas_size: Tuple[int, int],
 ) -> Dict[str, Any]:
     """
@@ -110,9 +168,74 @@ def normalize_layout(
     return normalized
 
 
-def _ensure_list(config: Dict[str, Any], key: str, fallback: List[Any]) -> None:
-    if key not in config or not isinstance(config[key], list):
-        config[key] = list(fallback)
+def normalize_style(style: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Normalize style dict for per-character config, keeping backward compatibility."""
+    src: Dict[str, Any] = dict(style) if isinstance(style, Mapping) else {}
+
+    normalized: Dict[str, Any] = {
+        "mode": "basic",
+        "text_wrapper": deepcopy(DEFAULT_TEXT_WRAPPER),
+        "basic": deepcopy(DEFAULT_BASIC_STYLE),
+        "advanced": deepcopy(DEFAULT_ADVANCED_STYLE),
+    }
+
+    mode = src.get("mode")
+    if isinstance(mode, str) and mode.lower() in {"basic", "advanced"}:
+        normalized["mode"] = mode.lower()
+
+    wrapper_candidate = src.get("text_wrapper")
+    wrapper_src: Dict[str, Any] = dict(wrapper_candidate) if isinstance(wrapper_candidate, Mapping) else {}
+    wrapper = normalized["text_wrapper"]
+    w_type = wrapper_src.get("type")
+    if isinstance(w_type, str) and w_type in {"none", "preset", "custom"}:
+        wrapper["type"] = w_type
+    preset = wrapper_src.get("preset")
+    if isinstance(preset, str):
+        wrapper["preset"] = preset
+    prefix = wrapper_src.get("prefix")
+    if isinstance(prefix, str):
+        wrapper["prefix"] = prefix
+    suffix = wrapper_src.get("suffix")
+    if isinstance(suffix, str):
+        wrapper["suffix"] = suffix
+    if wrapper["type"] == "preset":
+        wrapper["prefix"], wrapper["suffix"] = _wrapper_tokens_from_preset(wrapper["preset"])
+    elif wrapper["type"] == "none":
+        wrapper["prefix"] = ""
+        wrapper["suffix"] = ""
+
+    basic_candidate = src.get("basic")
+    basic_src: Dict[str, Any] = dict(basic_candidate) if isinstance(basic_candidate, Mapping) else {}
+    normalized["basic"]["font_size"] = _coerce_int(
+        basic_src.get("font_size", src.get("font_size")),
+        DEFAULT_BASIC_STYLE["font_size"],
+    )
+    normalized["basic"]["name_font_size"] = _coerce_int(
+        basic_src.get("name_font_size", src.get("name_font_size")),
+        DEFAULT_BASIC_STYLE["name_font_size"],
+    )
+    normalized["basic"]["text_color"] = _coerce_color(
+        basic_src.get("text_color", src.get("text_color")),
+        DEFAULT_BASIC_STYLE["text_color"],
+    )
+    normalized["basic"]["name_color"] = _coerce_color(
+        basic_src.get("name_color", src.get("name_color")),
+        DEFAULT_BASIC_STYLE["name_color"],
+    )
+
+    advanced_candidate = src.get("advanced")
+    advanced_src: Dict[str, Any] = dict(advanced_candidate) if isinstance(advanced_candidate, Mapping) else {}
+    layers = advanced_src.get("name_layers")
+    if isinstance(layers, dict):
+        normalized["advanced"]["name_layers"] = deepcopy(layers)
+    else:
+        normalized["advanced"]["name_layers"] = {}
+
+    for extra_key, extra_value in src.items():
+        if extra_key not in {"mode", "text_wrapper", "basic", "advanced"}:
+            normalized[extra_key] = extra_value
+
+    return normalized
 
 
 def _ensure_dict(config: Dict[str, Any], key: str, fallback: Dict[str, Any]) -> None:
@@ -122,6 +245,29 @@ def _ensure_dict(config: Dict[str, Any], key: str, fallback: Dict[str, Any]) -> 
         merged = dict(fallback)
         merged.update(config[key])
         config[key] = merged
+
+
+def _coerce_int(value: Any, fallback: int) -> int:
+    if isinstance(value, (int, float)):
+        result = int(value)
+        return result if result > 0 else fallback
+    return fallback
+
+
+def _coerce_color(value: Any, fallback: List[int]) -> List[int]:
+    if (
+        isinstance(value, (list, tuple))
+        and len(value) == 3
+        and all(isinstance(v, (int, float)) for v in value)
+    ):
+        return [max(0, min(255, int(v))) for v in value]  # clamp to RGB range
+    return list(fallback)
+
+
+def _wrapper_tokens_from_preset(preset: str) -> Tuple[str, str]:
+    if preset == "corner_double":
+        return "『", "』"
+    return "「", "」"
 
 
 def _determine_source_canvas_size(
@@ -136,11 +282,11 @@ def _determine_source_canvas_size(
     max_x, max_y = _estimate_layout_extent(layout)
     canvas_w, canvas_h = canvas_size
     if max_x > canvas_w or max_y > canvas_h:
-        return tuple(DEFAULT_RENDER_CONFIG["canvas_size"])  # type: ignore[arg-type]
+        return DEFAULT_CANVAS_SIZE
     return canvas_size
 
 
-def _parse_canvas_size(value: Any) -> Tuple[int, int] | None:
+def _parse_canvas_size(value: Any) -> Optional[Tuple[int, int]]:
     if (
         isinstance(value, (list, tuple))
         and len(value) == 2

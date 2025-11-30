@@ -1,9 +1,8 @@
 # core/listener.py
 
 import keyboard
-import win32gui
 import threading
-from typing import Any, Callable, Optional, List
+from typing import Any, Callable, Optional
 
 from .utils import load_global_config
 
@@ -15,8 +14,6 @@ class InputListener:
         self.paused = False
         
         config = load_global_config()
-        target_apps = config.get("target_apps", [])
-        self.target_apps: List[str] = target_apps if isinstance(target_apps, list) else []
         
         # 读取触发快捷键配置
         self.trigger_hotkey: str = config.get("trigger_hotkey", "enter").lower().strip()
@@ -27,18 +24,6 @@ class InputListener:
         self.on_submit: Optional[Callable[[], None]] = None
         self.on_switch_expression: Optional[Callable[[str], None]] = None
 
-    def is_target_window_active(self) -> bool:
-        """检查当前活动窗口是否在白名单内"""
-        try:
-            hwnd = win32gui.GetForegroundWindow()
-            title = win32gui.GetWindowText(hwnd)
-            for app in self.target_apps:
-                if app in title:
-                    return True
-        except Exception:
-            pass
-        return False
-
     def start(self, submit_callback: Callable[[], Any], switch_callback: Callable[[str], None]):
         """启动监听"""
         self.on_submit = submit_callback
@@ -46,7 +31,6 @@ class InputListener:
         self.running = True
 
         print("🎧 键盘监听已启动..")
-        print(f"   支持软件: {self.target_apps}")
         print(f"   触发快捷键: {self.trigger_hotkey}")
         print("   Alt+1~9(切表情), Ctrl+F5(重载配置), Ctrl+F12(暂停), Esc(退出)")
 
@@ -103,10 +87,6 @@ class InputListener:
         try:
             config = load_global_config()
             new_hotkey = config.get("trigger_hotkey", "enter").lower().strip()
-            new_target_apps = config.get("target_apps", [])
-            
-            # 更新目标应用列表
-            self.target_apps = new_target_apps if isinstance(new_target_apps, list) else []
             
             # 如果快捷键有变化，重新注册
             if new_hotkey != self.trigger_hotkey:
@@ -130,14 +110,8 @@ class InputListener:
                 self._passthrough_key()
             return
 
-        if self.is_target_window_active():
-            # 在目标软件内，执行发送逻辑
-            if self.on_submit:
-                threading.Thread(target=self._run_submit_async).start()
-        else:
-            # 非目标软件，如果是单键则透传
-            if self._is_single_key:
-                self._passthrough_key()
+        if self.on_submit:
+            threading.Thread(target=self._run_submit_async).start()
 
     def _passthrough_key(self):
         """透传单键"""

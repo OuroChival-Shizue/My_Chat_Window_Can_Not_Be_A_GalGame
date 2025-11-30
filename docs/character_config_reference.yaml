@@ -1,0 +1,35 @@
+# 角色配置示例，说明编辑器/渲染器可识别的字段
+meta:
+  id: yuraa          # 角色 ID（可选，主要用于区分）
+  name: 茅崎夕樱    # 在对话框中显示的角色名称
+style:
+  mode: advanced     # 名称渲染模式：basic / advanced
+  text_wrapper:
+    type: preset         # 台词包装类型：none / preset / custom
+    preset: corner_single  # 选择 preset 时使用的预设，corner_single=「」
+    prefix: "「"        # 自定义模式下的台词前缀
+    suffix: "」"        # 自定义模式下的台词后缀
+  basic:
+    font_size: 39        # 正文字号（像素）
+    text_color: [255, 255, 255]  # 正文颜色 (RGB)
+    name_font_size: 29    # 名字字号（像素）
+    name_color: [255, 0, 255]    # 名字颜色 (RGB)
+  advanced:
+    name_layers:          # 高级名称层，每个键是角色名称或 default
+      default:
+        - text: "{name}"         # 显示内容，支持 {name} 占位符
+          position: [0, 0]        # 相对于 name_pos 的偏移 (x, y)
+          font_color: [255, 0, 255]
+          font_size: 29
+layout:
+  _canvas_size: [1280, 720]  # 当前画布宽高，影响缩放
+  stand_pos: [0, 0]          # 立绘贴图的位置（左上角坐标）
+  stand_scale: 1.0           # 立绘缩放比例
+  stand_on_top: false        # 立绘是否覆盖对话框
+  current_portrait: 1.png    # 当前选中的立绘文件
+  current_background: 1.png  # 当前选中的背景文件
+  box_pos: [0, 0]            # 对话框贴图位置
+  text_area: [100, 800, 1800, 1000]  # 正文文本区域 [x1, y1, x2, y2]
+  name_pos: [100, 100]       # 名字文本的锚点位置
+assets:
+  dialog_box: textbox_bg.png  # 对话框贴图文件名

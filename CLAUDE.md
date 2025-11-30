@@ -123,7 +123,7 @@ graph TB
 | 文件             | 核心类/函数                                      | 职责                                             |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------ |
 | `engine.py`    | `GalGameEngine`                                | 协调监听器、渲染器、剪贴板，**不自动发送** |
-| `listener.py`  | `InputListener`                                | **可配置快捷键**、热重载、目标软件识别     |
+| `listener.py`  | `InputListener`                                | **可配置快捷键**、热重载、暂停切换         |
 | `renderer.py`  | `CharacterRenderer`                            | 加载资源、合成图像、绘制文字                     |
 | `clipboard.py` | `get_text()`, `set_image()`                  | Win32 剪贴板读写                                 |
 | `prebuild.py`  | `prebuild_character()`                         | 生成立绘×背景组合缓存                           |
@@ -349,15 +349,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v",
     },
-    "target_apps": ["QQ", "微信", "Discord", ...],
     "render": {
-        "canvas_size": [2560, 1440],
         "cache_format": "jpeg",
         "jpeg_quality": 90,
         "use_memory_canvas_cache": True
     }
 }
 ```
+
+- `normalize_style()`：为每个角色的 `style` 字段补齐 `mode`、`text_wrapper`、`basic`、`advanced` 结构，兼容旧版 `font_size/name_color` 写法，并自动处理台词前后缀与高级名字 YAML。
 
 ### `engine.py` - 主引擎 (v2.2 更新) ⭐
 
@@ -467,15 +467,50 @@ def reload_config(self):
         "copy_to_clipboard": "ctrl+shift+c",
         "show_character": "ctrl+shift+v"
     },
-    "target_apps": ["QQ", "微信", "WeChat", "Discord", "Telegram", "钉钉", "Tim"],
     "render": {
-        "canvas_size": [1920, 1080],
         "cache_format": "jpeg",
         "jpeg_quality": 90,
         "use_memory_canvas_cache": true
     }
 }
 ```
+
+> 画布分辨率改由各角色 `config.json` 中的 `layout._canvas_size` 控制，切换角色时会自动加载对应分辨率。
+
+### 角色 `style` 结构 (`assets/characters/<id>/config.json`)
+
+```jsonc
+"style": {
+    "mode": "advanced",
+    "text_wrapper": {
+        "type": "preset",
+        "preset": "corner_double",
+        "prefix": "『",
+        "suffix": "』"
+    },
+    "basic": {
+        "font_size": 40,
+        "text_color": [255, 255, 255],
+        "name_font_size": 32,
+        "name_color": [255, 85, 255]
+    },
+    "advanced": {
+        "name_layers": {
+            "warden": [
+                {"text": "典", "position": [0, 0], "font_color": [195, 209, 231], "font_size": 196},
+                {"text": "狱", "position": [200, 100], "font_color": [255, 255, 255], "font_size": 92},
+                {"text": "长", "position": [300, 50], "font_color": [255, 255, 255], "font_size": 147}
+            ],
+            "default": [
+                {"text": "{name}", "position": [0, 0], "font_color": [255, 85, 255], "font_size": 32}
+            ]
+        }
+    }
+}
+```
+
+- GUI 属性面板新增「台词前后缀」组合框，可选 `none` / 「」「」 / 『』『』 / 自定义前后缀，并直接写入 `text_wrapper`。
+- 勾选“启用高级名称 YAML”后会展开输入框，可编辑 `name_layers` 并点击“应用 YAML”即时保存，渲染器会按相对坐标叠加多层文本。
 
 ### 快捷键格式说明
 
@@ -500,7 +535,7 @@ main.py → GalGameEngine
       ├─ 注册 Ctrl+F5 → reload_config()  # 热重载
       ├─ 注册 Ctrl+F12 → toggle_pause()
       ├─ 注册 Alt+1~9 → 切换表情
-      └─ trigger_hotkey 触发 (目标软件内):
+      └─ trigger_hotkey 触发:
           ├─ Ctrl+A, Ctrl+X 提取文本
           ├─ renderer.render(text, portrait_key, bg_key)
           ├─ set_image(pil_img)      # 写入剪贴板

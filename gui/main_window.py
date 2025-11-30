@@ -3,20 +3,22 @@ import os
 import json
 import shutil
 import re
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, Union
+
+import yaml
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem,
+    QMainWindow, QGraphicsScene, QGraphicsView, QGraphicsPixmapItem, QGraphicsSimpleTextItem,
     QDockWidget, QMessageBox, QFileDialog, QInputDialog, QDialog
 )
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QPixmap, QPen, QBrush, QColor, QPainter, QFont, QFontDatabase, QAction
 
 from .constants import (
-    BASE_PATH, CanvasConfig, COMMON_RESOLUTIONS,
+    BASE_PATH, CanvasConfig, COMMON_RESOLUTIONS, DEFAULT_CANVAS_SIZE,
     Z_BG, Z_PORTRAIT_BOTTOM, Z_BOX, Z_PORTRAIT_TOP, Z_TEXT,
-    load_global_config, save_global_config, normalize_layout,
-    CharacterRenderer, prebuild_character
+    load_global_config, save_global_config, normalize_layout, normalize_style,
+    dump_yaml_inline, CharacterRenderer, prebuild_character
 )
 from .canvas import ResizableTextItem, ScalableImageItem
 from .widgets import NewCharacterDialog, PrebuildProgressDialog
@@ -37,17 +39,19 @@ class MainWindow(QMainWindow):
         self.config: Dict[str, Any] = {}
         self.config_path: str = ""
 
-        self.scene_items : Dict[str, Optional[ResizableTextItem|ScalableImageItem]] = {
+        self.scene_items: Dict[str, Optional[Union[ResizableTextItem, ScalableImageItem]]] = {
             "bg": None,
             "portrait": None,
             "box": None,
             "name_text": None,
             "main_text": None
         }
+        self.advanced_name_items: List[QGraphicsSimpleTextItem] = []
 
         self.custom_font_family = ""
         self.cache_outdated = False
         self.resolution_prompted = False
+        self._ui_syncing = False
 
         # --- 初始化 ---
         self._load_custom_font()
@@ -192,6 +196,12 @@ class MainWindow(QMainWindow):
         pp.spin_name_size.valueChanged.connect(self.on_style_changed)
         pp.btn_text_color.colorChanged.connect(self.on_style_changed)
         pp.btn_name_color.colorChanged.connect(self.on_style_changed)
+        pp.combo_wrapper_mode.currentIndexChanged.connect(self.on_wrapper_changed)
+        pp.edit_wrapper_prefix.textChanged.connect(self.on_wrapper_changed)
+        pp.edit_wrapper_suffix.textChanged.connect(self.on_wrapper_changed)
+        pp.check_name_advanced.toggled.connect(self.on_name_mode_toggled)
+        pp.btn_apply_name_yaml.clicked.connect(self.on_apply_name_layers_yaml)
+        pp.btn_reset_name_yaml.clicked.connect(self.on_reset_name_layers_yaml)
         pp.combo_resolution.currentIndexChanged.connect(self.on_resolution_changed)
         pp.check_on_top.toggled.connect(self.on_layout_changed)
         pp.btn_select_dialog_box.clicked.connect(self.select_dialog_box)
@@ -227,18 +237,38 @@ class MainWindow(QMainWindow):
             self.on_character_changed(combo.currentIndex())
 
     def load_config(self):
-        canvas_w, canvas_h = CanvasConfig.get_size()
+        default_style = normalize_style({
+            "basic": {
+                "font_size": 45,
+                "text_color": [255, 255, 255],
+                "name_font_size": 29,
+                "name_color": [255, 0, 255],
+            }
+        })
+        current_canvas = CanvasConfig.get_size()
         default_cfg = {
             "meta": {"name": self.current_char_id},
-            "style": {"font_size": 45, "text_color": [255, 255, 255], "name_color": [255, 0, 255]},
-            "layout": {"stand_scale": 1.0, "stand_on_top": False},
+            "style": default_style,
+            "layout": {
+                "stand_scale": 1.0,
+                "stand_on_top": False,
+                "_canvas_size": [current_canvas[0], current_canvas[1]],
+            },
             "assets": {"dialog_box": "textbox_bg.png"}
         }
 
-        if os.path.exists(self.config_path):
+        load_path = self.config_path
+        legacy_path = os.path.join(self.char_root, "config.json")
+        if not os.path.exists(load_path) and os.path.exists(legacy_path):
+            load_path = legacy_path
+
+        if os.path.exists(load_path):
             try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    loaded = json.load(f)
+                with open(load_path, 'r', encoding='utf-8') as f:
+                    if load_path.endswith(('.yaml', '.yml')):
+                        loaded = yaml.safe_load(f) or {}
+                    else:
+                        loaded = json.load(f)
                     self.config = self._merge_dicts(default_cfg, loaded)
             except Exception as e:
                 print(f"Config load error: {e}")
@@ -246,10 +276,18 @@ class MainWindow(QMainWindow):
         else:
             self.config = default_cfg
 
+        self.config["style"] = normalize_style(self.config.get("style"))
         layout = self.config.setdefault("layout", {})
-        normalized = normalize_layout(layout, (canvas_w, canvas_h))
-        normalized["_canvas_size"] = [canvas_w, canvas_h]
+        stored_canvas = self._extract_canvas_size(layout.get("_canvas_size"))
+        if stored_canvas:
+            CanvasConfig.set_size(*stored_canvas)
+        else:
+            CanvasConfig.set_size(*DEFAULT_CANVAS_SIZE)
+        canvas_size = CanvasConfig.get_size()
+        normalized = normalize_layout(layout, canvas_size)
+        normalized["_canvas_size"] = [canvas_size[0], canvas_size[1]]
         self.config["layout"] = normalized
+        self.scene.setSceneRect(0, 0, canvas_size[0], canvas_size[1])
 
     def _merge_dicts(self, base, update):
         for k, v in update.items():
@@ -258,6 +296,94 @@ class MainWindow(QMainWindow):
             else:
                 base[k] = v
         return base
+
+    def _ensure_style(self) -> Dict[str, Any]:
+        style = self.config.get("style")
+        normalized = normalize_style(style)
+        self.config["style"] = normalized
+        return normalized
+
+    def _find_wrapper_index(self, wrapper: Dict[str, Any]) -> int:
+        combo = self.props_panel.combo_wrapper_mode
+        wrapper_type = wrapper.get("type", "none")
+        preset = wrapper.get("preset")
+        for i in range(combo.count()):
+            data = combo.itemData(i)
+            if not isinstance(data, dict):
+                continue
+            if data.get("type") != wrapper_type:
+                continue
+            if wrapper_type == "preset":
+                if data.get("preset") == preset:
+                    return i
+            else:
+                return i
+        return -1
+
+    def _set_wrapper_inputs(self, prefix: str, suffix: str) -> None:
+        pp = self.props_panel
+        pp.edit_wrapper_prefix.blockSignals(True)
+        pp.edit_wrapper_prefix.setText(prefix)
+        pp.edit_wrapper_prefix.blockSignals(False)
+        pp.edit_wrapper_suffix.blockSignals(True)
+        pp.edit_wrapper_suffix.setText(suffix)
+        pp.edit_wrapper_suffix.blockSignals(False)
+
+    def _dump_name_layers(self, style: Dict[str, Any]) -> str:
+        layers = style.get("advanced", {}).get("name_layers", {})
+        try:
+            dumped = dump_yaml_inline(layers or {})
+            return dumped if isinstance(dumped, str) else ""
+        except Exception:
+            return "default: []"
+
+    @staticmethod
+    def _wrapper_tokens(preset: str) -> Tuple[str, str]:
+        if preset == "corner_double":
+            return "『", "』"
+        return "「", "」"
+
+    def _build_default_name_layers(self) -> Dict[str, Any]:
+        style = self._ensure_style()
+        basic = style.get("basic", {})
+        color = basic.get("name_color", [255, 255, 255])
+        size = max(1, int(basic.get("name_font_size", 32)))
+        meta_name = self.config.get("meta", {}).get("name") or self.current_char_id or "default"
+        spacing = max(1, int(size * 0.8))
+        entries: List[Dict[str, Any]] = []
+        x_offset = 0
+        for ch in meta_name:
+            entries.append(
+                {
+                    "text": ch,
+                    "position": [x_offset, 0],
+                    "font_color": color,
+                    "font_size": size,
+                }
+            )
+            x_offset += spacing
+        if not entries:
+            entries.append(
+                {
+                    "text": "{name}",
+                    "position": [0, 0],
+                    "font_color": color,
+                    "font_size": size,
+                }
+            )
+
+        fallback = [
+            {
+                "text": "{name}",
+                "position": [0, 0],
+                "font_color": color,
+                "font_size": size,
+            }
+        ]
+
+        layers: Dict[str, Any] = {meta_name: entries}
+        layers["default"] = fallback
+        return layers
 
     # =========================================================================
     # UI 同步
@@ -289,26 +415,49 @@ class MainWindow(QMainWindow):
 
     def update_ui_from_config(self):
         meta = self.config.get("meta", {})
-        style = self.config.get("style", {})
+        style = self._ensure_style()
+        basic = style.get("basic", {})
+        wrapper = style.get("text_wrapper", {})
         layout = self.config.get("layout", {})
 
         pp = self.props_panel
         ap = self.assets_panel
 
+        self._ui_syncing = True
         pp.edit_name.blockSignals(True)
         pp.edit_name.setText(meta.get("name", ""))
         pp.edit_name.blockSignals(False)
 
         pp.spin_font_size.blockSignals(True)
-        pp.spin_font_size.setValue(int(style.get("font_size", 45)))
+        pp.spin_font_size.setValue(int(basic.get("font_size", 45)))
         pp.spin_font_size.blockSignals(False)
 
         pp.spin_name_size.blockSignals(True)
-        pp.spin_name_size.setValue(int(style.get("name_font_size", 45)))
+        pp.spin_name_size.setValue(int(basic.get("name_font_size", 45)))
         pp.spin_name_size.blockSignals(False)
 
-        pp.btn_text_color.set_color(style.get("text_color", [255, 255, 255]))
-        pp.btn_name_color.set_color(style.get("name_color", [255, 0, 255]))
+        pp.btn_text_color.set_color(basic.get("text_color", [255, 255, 255]))
+        pp.btn_name_color.set_color(basic.get("name_color", [255, 0, 255]))
+
+        is_advanced = style.get("mode") == "advanced"
+        pp.check_name_advanced.blockSignals(True)
+        pp.check_name_advanced.setChecked(is_advanced)
+        pp.check_name_advanced.blockSignals(False)
+        pp.set_advanced_yaml_visible(is_advanced)
+        pp.edit_name_yaml.blockSignals(True)
+        pp.edit_name_yaml.setPlainText(self._dump_name_layers(style))
+        pp.edit_name_yaml.blockSignals(False)
+
+        pp.combo_wrapper_mode.blockSignals(True)
+        wrapper_index = self._find_wrapper_index(wrapper)
+        if wrapper_index < 0:
+            wrapper_index = 0
+        pp.combo_wrapper_mode.setCurrentIndex(wrapper_index)
+        pp.combo_wrapper_mode.blockSignals(False)
+        prefix = wrapper.get("prefix", "")
+        suffix = wrapper.get("suffix", "")
+        self._set_wrapper_inputs(prefix, suffix)
+        pp.set_wrapper_custom_enabled(wrapper.get("type") == "custom")
 
         pp.check_on_top.blockSignals(True)
         pp.check_on_top.setChecked(layout.get("stand_on_top", False))
@@ -327,6 +476,7 @@ class MainWindow(QMainWindow):
                 ap.list_backgrounds.setCurrentItem(items[0])
 
         self._sync_resolution_combo()
+        self._ui_syncing = False
 
     def _sync_resolution_combo(self):
         combo = self.props_panel.combo_resolution
@@ -346,6 +496,7 @@ class MainWindow(QMainWindow):
 
     def rebuild_scene(self):
         self.scene_items = {k: None for k in self.scene_items}
+        self.advanced_name_items = []
         self.scene.clear()
 
         canvas_w, canvas_h = CanvasConfig.get_size()
@@ -422,13 +573,14 @@ class MainWindow(QMainWindow):
                 self.scene_items["portrait"] = item
 
         # 文本项
-        style = self.config.get("style", {})
+        style = self._ensure_style()
+        basic = style.get("basic", {})
         meta = self.config.get("meta", {})
 
         # 名字文本
         name_pos = layout.get("name_pos", [100, 100])
-        name_color = style.get("name_color", [255, 0, 255])
-        name_size = style.get("name_font_size", 45)
+        name_color = basic.get("name_color", [255, 0, 255])
+        name_size = basic.get("name_font_size", 45)
         name_str = meta.get("name", self.current_char_id)
 
         name_item = ResizableTextItem(
@@ -443,16 +595,30 @@ class MainWindow(QMainWindow):
         self.scene.addItem(name_item)
         self.scene_items["name_text"] = name_item
 
+        if style.get("mode") == "advanced":
+            placeholder_color = [180, 180, 180]
+            placeholder_size = max(12, int(name_size * 0.6))
+            name_item.update_content(
+                text="高级名称模式\n拖动此框调整基准点",
+                color=placeholder_color,
+                size=placeholder_size
+            )
+            name_item.setOpacity(0.6)
+            self._create_advanced_name_preview(name_item, style, name_str)
+        else:
+            name_item.setOpacity(1.0)
+
         # 正文文本
         text_area = layout.get("text_area", [100, 800, 1800, 1000])
-        text_color = style.get("text_color", [255, 255, 255])
-        text_size = style.get("font_size", 45)
+        text_color = basic.get("text_color", [255, 255, 255])
+        text_size = basic.get("font_size", 45)
+        sample_text = self._get_preview_sample_text(style)
 
         w = text_area[2] - text_area[0]
         h = text_area[3] - text_area[1]
         text_item = ResizableTextItem(
             QRectF(0, 0, w, h),
-            "预览文本区域\n拖动调整位置",
+            sample_text,
             text_color,
             text_size,
             font_family=self.custom_font_family
@@ -463,6 +629,116 @@ class MainWindow(QMainWindow):
         self.scene_items["main_text"] = text_item
 
         self.fit_view()
+
+    def _get_preview_sample_text(self, style: Dict[str, Any]) -> str:
+        base = "预览文本区域\n拖动调整位置"
+        wrapper = style.get("text_wrapper", {})
+        if not isinstance(wrapper, dict):
+            return base
+        wrapper_type = wrapper.get("type", "none")
+        prefix = ""
+        suffix = ""
+        if wrapper_type == "preset":
+            preset = wrapper.get("preset", "corner_single")
+            prefix, suffix = self._wrapper_tokens(preset)
+        elif wrapper_type == "custom":
+            prefix = str(wrapper.get("prefix", ""))
+            suffix = str(wrapper.get("suffix", ""))
+
+        if not prefix and not suffix:
+            return base
+
+        if not base:
+            return f"{prefix}{suffix}"
+        return f"{prefix}{base}{suffix}"
+
+    def _update_preview_wrapper_text(self):
+        text_item = self.scene_items.get("main_text")
+        if isinstance(text_item, ResizableTextItem):
+            sample = self._get_preview_sample_text(self._ensure_style())
+            text_item.update_content(text=sample)
+
+    def _extract_canvas_size(self, value: Any) -> Optional[Tuple[int, int]]:
+        if (
+            isinstance(value, (list, tuple))
+            and len(value) == 2
+        ):
+            try:
+                w = int(value[0])
+                h = int(value[1])
+            except Exception:
+                return None
+            if w > 0 and h > 0:
+                return w, h
+        return None
+
+    def _create_advanced_name_preview(self, anchor_item: ResizableTextItem, style: Dict[str, Any], speaker_name: str):
+        advanced = style.get("advanced", {})
+        layers_map = advanced.get("name_layers")
+        if not isinstance(layers_map, dict):
+            return
+
+        entries: Optional[List[Dict[str, Any]]] = None
+        if speaker_name and speaker_name in layers_map:
+            entries = layers_map[speaker_name]
+        elif "default" in layers_map:
+            entries = layers_map["default"]
+
+        if not isinstance(entries, list):
+            return
+
+        basic = style.get("basic", {})
+        fallback_color = basic.get("name_color", [255, 255, 255])
+        fallback_size = basic.get("name_font_size", 32)
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            text_value = str(entry.get("text", ""))
+            if not text_value:
+                continue
+            text_value = text_value.replace("{name}", speaker_name or "")
+
+            pos = entry.get("position", [0, 0])
+            if (
+                isinstance(pos, (list, tuple))
+                and len(pos) == 2
+            ):
+                offset_x = float(pos[0])
+                offset_y = float(pos[1])
+            else:
+                offset_x = 0.0
+                offset_y = 0.0
+
+            color_src = entry.get("font_color", fallback_color)
+            if (
+                isinstance(color_src, (list, tuple))
+                and len(color_src) == 3
+            ):
+                color_rgb = [max(0, min(255, int(c))) for c in color_src]
+            else:
+                color_rgb = fallback_color
+
+            size_src = entry.get("font_size", fallback_size)
+            try:
+                font_size = max(1, int(size_src))
+            except Exception:
+                font_size = max(1, int(fallback_size))
+
+            font = QFont()
+            font.setPixelSize(font_size)
+            if self.custom_font_family:
+                font.setFamily(self.custom_font_family)
+            else:
+                font.setFamily("Microsoft YaHei")
+
+            text_item = QGraphicsSimpleTextItem(text_value, anchor_item)
+            text_item.setFont(font)
+            text_item.setBrush(QColor(*color_rgb))
+            bounds = text_item.boundingRect()
+            text_item.setPos(offset_x - bounds.left(), offset_y - bounds.top())
+            text_item.setZValue(anchor_item.zValue() + 0.1)
+            self.advanced_name_items.append(text_item)
 
     def _find_asset_path(self, filename, type_folder):
         p1 = os.path.join(self.char_root, type_folder, filename)
@@ -490,7 +766,7 @@ class MainWindow(QMainWindow):
 
         self.current_char_id = char_id
         self.char_root = os.path.join(BASE_PATH, "characters", char_id)
-        self.config_path = os.path.join(self.char_root, "config.json")
+        self.config_path = os.path.join(self.char_root, "config.yaml")
 
         try:
             g_conf = load_global_config()
@@ -524,23 +800,117 @@ class MainWindow(QMainWindow):
 
     def on_style_changed(self):
         pp = self.props_panel
-        style = self.config.setdefault("style", {})
+        style = self._ensure_style()
+        basic = style.setdefault("basic", {})
 
-        style["font_size"] = pp.spin_font_size.value()
-        style["name_font_size"] = pp.spin_name_size.value()
-        style["text_color"] = pp.btn_text_color.current_color
-        style["name_color"] = pp.btn_name_color.current_color
+        basic["font_size"] = pp.spin_font_size.value()
+        basic["name_font_size"] = pp.spin_name_size.value()
+        basic["text_color"] = pp.btn_text_color.current_color
+        basic["name_color"] = pp.btn_name_color.current_color
 
         if isinstance(self.scene_items["main_text"], ResizableTextItem):
             self.scene_items["main_text"].update_content(
-                size=style["font_size"],
-                color=style["text_color"]
+                size=basic["font_size"],
+                color=basic["text_color"]
             )
         if isinstance(self.scene_items["name_text"], ResizableTextItem):
             self.scene_items["name_text"].update_content(
-                size=style["name_font_size"],
-                color=style["name_color"]
+                size=basic["name_font_size"],
+                color=basic["name_color"]
             )
+
+    def on_wrapper_changed(self):
+        pp = self.props_panel
+        style = self._ensure_style()
+        wrapper = style.setdefault("text_wrapper", {})
+        data = pp.combo_wrapper_mode.currentData()
+        wrapper_type = data.get("type") if isinstance(data, dict) else "none"
+        wrapper["type"] = wrapper_type
+
+        if wrapper_type == "preset":
+            preset = data.get("preset", "corner_single") if isinstance(data, dict) else "corner_single"
+            wrapper["preset"] = preset
+            prefix, suffix = self._wrapper_tokens(preset)
+            wrapper["prefix"], wrapper["suffix"] = prefix, suffix
+            pp.set_wrapper_custom_enabled(False)
+            self._set_wrapper_inputs(prefix, suffix)
+        elif wrapper_type == "custom":
+            wrapper["preset"] = "corner_single"
+            wrapper["prefix"] = pp.edit_wrapper_prefix.text()
+            wrapper["suffix"] = pp.edit_wrapper_suffix.text()
+            pp.set_wrapper_custom_enabled(True)
+        else:
+            wrapper["preset"] = "corner_single"
+            wrapper["prefix"] = ""
+            wrapper["suffix"] = ""
+            pp.set_wrapper_custom_enabled(False)
+            self._set_wrapper_inputs("", "")
+        self._update_preview_wrapper_text()
+
+    def on_name_mode_toggled(self, checked: bool):
+        if getattr(self, "_ui_syncing", False):
+            return
+        style = self._ensure_style()
+        style["mode"] = "advanced" if checked else "basic"
+        if checked:
+            advanced = style.setdefault("advanced", {})
+            layers = advanced.get("name_layers")
+            if not isinstance(layers, dict) or not layers:
+                advanced["name_layers"] = self._build_default_name_layers()
+                pp = self.props_panel
+                pp.edit_name_yaml.blockSignals(True)
+                pp.edit_name_yaml.setPlainText(self._dump_name_layers(style))
+                pp.edit_name_yaml.blockSignals(False)
+        self.props_panel.set_advanced_yaml_visible(checked)
+        self.rebuild_scene()
+
+    def on_apply_name_layers_yaml(self):
+        pp = self.props_panel
+        raw = pp.edit_name_yaml.toPlainText().strip()
+        if not raw:
+            layers: Dict[str, Any] = {}
+        else:
+            try:
+                parsed = yaml.safe_load(raw)
+            except yaml.YAMLError as exc:
+                QMessageBox.warning(self, "YAML 错误", f"解析失败: {exc}")
+                return
+            if not isinstance(parsed, dict):
+                QMessageBox.warning(self, "格式错误", "YAML 根节点必须是对象（字典）")
+                return
+            layers = {}
+            for key, value in parsed.items():
+                if not isinstance(key, str):
+                    QMessageBox.warning(self, "格式错误", "所有键必须是字符串")
+                    return
+                if not isinstance(value, list):
+                    QMessageBox.warning(self, "格式错误", f"「{key}」的值必须是列表")
+                    return
+                layers[key] = value
+
+        style = self._ensure_style()
+        advanced = style.setdefault("advanced", {})
+        advanced["name_layers"] = layers
+        pp.edit_name_yaml.blockSignals(True)
+        pp.edit_name_yaml.setPlainText(self._dump_name_layers(style))
+        pp.edit_name_yaml.blockSignals(False)
+        status_bar = self.statusBar()
+        if status_bar:
+            status_bar.showMessage("高级名称 YAML 已应用", 3000)
+        self.rebuild_scene()
+
+    def on_reset_name_layers_yaml(self):
+        style = self._ensure_style()
+        advanced = style.setdefault("advanced", {})
+        advanced["name_layers"] = self._build_default_name_layers()
+        self.props_panel.edit_name_yaml.blockSignals(True)
+        self.props_panel.edit_name_yaml.setPlainText(self._dump_name_layers(style))
+        self.props_panel.edit_name_yaml.blockSignals(False)
+        status_bar = self.statusBar()
+        if status_bar:
+            status_bar.showMessage("已恢复高级名称默认示例", 3000)
+        self.rebuild_scene()
+        self._update_preview_wrapper_text()
 
     def on_resolution_changed(self, index: int):
         if index < 0:
@@ -573,18 +943,6 @@ class MainWindow(QMainWindow):
         self._scale_layout_for_canvas(layout, old_tuple, size)
 
         CanvasConfig.set_size(size[0], size[1])
-
-        try:
-            cfg = load_global_config()
-        except Exception:
-            cfg = {}
-        render_cfg = cfg.setdefault("render", {})
-        render_cfg["canvas_size"] = [size[0], size[1]]
-        try:
-            save_global_config(cfg)
-        except Exception as exc:
-            print(f"保存全局分辨率失败: {exc}")
-
         layout["_canvas_size"] = [size[0], size[1]]
         self.scene.setSceneRect(0, 0, size[0], size[1])
         self.update_ui_from_config()
@@ -824,27 +1182,32 @@ class MainWindow(QMainWindow):
                 os.makedirs(os.path.join(new_root, "background"))
 
                 canvas_w, canvas_h = CanvasConfig.get_size()
-                default_config = {
-                    "meta": {"name": char_name or char_id, "id": char_id},
-                    "assets": {"dialog_box": "textbox_bg.png"},
-                    "style": {
+                default_style = normalize_style({
+                    "basic": {
                         "text_color": [255, 255, 255],
                         "name_color": [255, 0, 255],
                         "font_size": 45,
                         "name_font_size": 45
-                    },
+                    }
+                })
+                canvas_size = CanvasConfig.get_size()
+                default_config = {
+                    "meta": {"name": char_name or char_id, "id": char_id},
+                    "assets": {"dialog_box": "textbox_bg.png"},
+                    "style": default_style,
                     "layout": {
                         "stand_pos": [0, 0],
                         "stand_scale": 1.0,
                         "box_pos": [0, canvas_h - 200],
                         "text_area": [100, 800, 1800, 1000],
                         "name_pos": [100, 100],
-                        "stand_on_top": False
+                        "stand_on_top": False,
+                        "_canvas_size": [canvas_size[0], canvas_size[1]],
                     }
                 }
 
-                with open(os.path.join(new_root, "config.json"), "w", encoding="utf-8") as f:
-                    json.dump(default_config, f, ensure_ascii=False, indent=4)
+                with open(os.path.join(new_root, "config.yaml"), "w", encoding="utf-8") as f:
+                    dump_yaml_inline(default_config, f)
 
                 QMessageBox.information(
                     self, "成功",
@@ -862,12 +1225,6 @@ class MainWindow(QMainWindow):
     def open_character_folder(self):
         if self.char_root and os.path.exists(self.char_root):
             os.startfile(self.char_root)
-            
-    def open_settings(self):
-        """打开设置对话框"""
-        from .widgets import SettingsDialog
-        dialog = SettingsDialog(self)
-        dialog.exec()
 
     def reload_current_character(self):
         if self.current_char_id:
@@ -886,17 +1243,26 @@ class MainWindow(QMainWindow):
                 if not os.path.isdir(root):
                     continue
 
-                cfg_path = os.path.join(root, "config.json")
+                yaml_path = os.path.join(root, "config.yaml")
+                legacy_path = os.path.join(root, "config.json")
+                cfg_path = yaml_path if os.path.exists(yaml_path) else legacy_path
                 if not os.path.exists(cfg_path):
                     continue
 
                 try:
                     with open(cfg_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
+                        if cfg_path.endswith(('.yaml', '.yml')):
+                            data = yaml.safe_load(f) or {}
+                        else:
+                            data = json.load(f)
                 except Exception:
                     continue
 
                 modified = False
+                normalized_style = normalize_style(data.get("style"))
+                if data.get("style") != normalized_style:
+                    data["style"] = normalized_style
+                    modified = True
                 layout = data.get("layout", {})
                 assets = data.get("assets", {})
 
@@ -921,9 +1287,9 @@ class MainWindow(QMainWindow):
                     assets["dialog_box"] = "textbox_bg.png"
                     modified = True
 
-                if modified:
-                    with open(cfg_path, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=4)
+                if modified or cfg_path != yaml_path:
+                    with open(yaml_path, 'w', encoding='utf-8') as f:
+                        dump_yaml_inline(data, f)
                     count += 1
 
             QMessageBox.information(self, "完成", f"已检查所有角色，修复了 {count} 个配置文件。")
@@ -971,10 +1337,11 @@ class MainWindow(QMainWindow):
             return
 
         self._collect_scene_data()
+        self._ensure_style()
 
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, ensure_ascii=False, indent=4)
+                dump_yaml_inline(self.config, f)
             statusBar = self.statusBar()
             if not statusBar:
                raise RuntimeError("Status bar is not available") 

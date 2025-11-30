@@ -1,0 +1,11 @@
+# 全局配置示例，包含每个字段的用途说明
+current_character: yuraa  # 启动编辑器时自动选中的角色 ID
+trigger_hotkey: ctrl+enter  # 文字转图片操作的触发快捷键（Settings 中可修改）
+global_hotkeys:
+  copy_to_clipboard: ctrl+shift+c  # 控制台模式下，将最后一张图复制到剪贴板
+  show_character: ctrl+shift+v     # 控制台模式下，显示/隐藏角色
+render:
+  cache_format: jpeg        # 预构建缓存所使用的图片格式，可选 jpeg/png
+  jpeg_quality: 90          # 当 cache_format=jpeg 时的导出质量
+  use_memory_canvas_cache: true  # 渲染器是否在内存中缓存画布，减少重复读写
+# 画布分辨率请在角色 config.json 的 layout._canvas_size 中配置
