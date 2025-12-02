@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Box-of-GalGame-Sister 编辑器 (Refactored)")
+        self.setWindowTitle("My Chat Window Can Not Be A GalGame 编辑器 (Refactored)")
         self.resize(1600, 900)
 
         # --- 状态变量 ---
@@ -205,6 +205,8 @@ class MainWindow(QMainWindow):
         pp.combo_resolution.currentIndexChanged.connect(self.on_resolution_changed)
         pp.check_on_top.toggled.connect(self.on_layout_changed)
         pp.btn_select_dialog_box.clicked.connect(self.select_dialog_box)
+        pp.btn_select_font.clicked.connect(self.select_custom_font)
+        pp.btn_clear_font.clicked.connect(self.clear_custom_font)
 
     # =========================================================================
     # 数据加载
@@ -438,6 +440,16 @@ class MainWindow(QMainWindow):
 
         pp.btn_text_color.set_color(basic.get("text_color", [255, 255, 255]))
         pp.btn_name_color.set_color(basic.get("name_color", [255, 0, 255]))
+
+        # 更新字体显示
+        font_file = style.get("font_file")
+        if font_file:
+            font_name = os.path.basename(font_file)
+            pp.lbl_font_file.setText(font_name)
+            pp.lbl_font_file.setStyleSheet("color: green; font-size: 10px;")
+        else:
+            pp.lbl_font_file.setText("默认字体")
+            pp.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
 
         is_advanced = style.get("mode") == "advanced"
         pp.check_name_advanced.blockSignals(True)
@@ -1124,6 +1136,70 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"操作失败: {e}")
+
+    def select_custom_font(self):
+        """选择自定义字体文件"""
+        if not self.current_char_id:
+            return
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择字体文件", "", "TrueType Fonts (*.ttf *.TTF)"
+        )
+        if not path:
+            return
+
+        try:
+            # 创建字体目录（如果不存在）
+            font_dir = os.path.join(self.char_root, "fonts")
+            if not os.path.exists(font_dir):
+                os.makedirs(font_dir)
+
+            # 复制字体文件到角色目录
+            font_filename = os.path.basename(path)
+            target_path = os.path.join(font_dir, font_filename)
+
+            # 如果文件已存在，询问是否替换
+            if os.path.exists(target_path):
+                reply = QMessageBox.question(
+                    self, "替换确认",
+                    f"字体文件 '{font_filename}' 已存在，是否替换？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+
+            shutil.copy(path, target_path)
+
+            # 更新配置（相对路径）
+            relative_path = os.path.join("fonts", font_filename)
+            self.config.setdefault("style", {})["font_file"] = relative_path
+
+            # 更新 UI 显示
+            self.props_panel.lbl_font_file.setText(font_filename)
+            self.props_panel.lbl_font_file.setStyleSheet("color: green; font-size: 10px;")
+
+            self.cache_outdated = True
+            QMessageBox.information(self, "成功", f"字体已导入: {font_filename}\n\n请保存配置并重新生成缓存以应用更改。")
+
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"字体导入失败: {e}")
+
+    def clear_custom_font(self):
+        """清除自定义字体"""
+        if not self.current_char_id:
+            return
+
+        # 移除配置中的字体设置
+        style = self.config.get("style", {})
+        if "font_file" in style:
+            del style["font_file"]
+
+            # 更新 UI 显示
+            self.props_panel.lbl_font_file.setText("默认字体")
+            self.props_panel.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
+
+            self.cache_outdated = True
+            QMessageBox.information(self, "成功", "已清除自定义字体，将使用默认字体。\n\n请保存配置并重新生成缓存以应用更改。")
 
     def delete_asset_file(self, filename: str, asset_type: str):
         """右键删除文件"""

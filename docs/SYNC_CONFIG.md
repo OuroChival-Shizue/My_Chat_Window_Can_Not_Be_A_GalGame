@@ -189,10 +189,10 @@ ok [kotori] 配置正常
 
 ### 集成到编辑器
 
-在 `creator_gui.py` 中已集成该功能：
+在 GUI 编辑器中已集成该功能：
 
 ```python
-# creator_gui.py:1036-1094
+# gui/main_window.py (MainWindow.sync_all_configs)
 def sync_all_configs(self):
     """同步/修复配置的具体实现"""
     # 实现与 sync_config.py 相同的逻辑
@@ -316,7 +316,7 @@ sync_config.py (独立工具)
   ├─ 验证: assets/common/background/*.png
   └─ 写入: assets/characters/*/config.json (修复后)
 
-creator_gui.py
+gui/main_window.py
   └─ sync_all_configs() 方法
       └─ 集成了相同逻辑（菜单: 工具 → 同步/修复配置）
 

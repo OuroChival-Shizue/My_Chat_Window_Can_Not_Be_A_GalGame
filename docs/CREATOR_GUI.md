@@ -8,7 +8,8 @@
 
 Creator GUI 是项目的可视化配置工具，提供所见即所得的角色编辑体验。用户通过拖拽、调整元素位置和大小，配置角色的立绘、对话框、文本区域等参数。
 
-**文件路径**: `creator_gui.py` (1869 行)
+**入口文件**: `creator_gui.py` (~30 行，启动入口)
+**主要模块**: `gui/` 目录（模块化架构）
 **技术栈**: PyQt6 (Graphics View Framework)
 **依赖**: core.renderer, core.prebuild, core.utils
 
@@ -71,26 +72,28 @@ graph TB
 
 ### 1️⃣ MainWindow - 主编辑器窗口
 
-**类路径**: `creator_gui.py:329-1163`
+**类路径**: `gui/main_window.py`
 
 #### 职责
+
 - 角色配置的主界面
 - 管理 Graphics Scene 和所有可视化元素
 - 协调资源加载、配置读写、预览渲染
 
 #### 核心属性
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `current_char_id` | `str` | 当前编辑的角色 ID |
-| `config` | `Dict` | 当前角色的完整配置 |
-| `scene` | `QGraphicsScene` | 2560×1440 画布 |
-| `scene_items` | `Dict` | 画布元素引用 (bg, portrait, box, name_text, main_text) |
-| `custom_font_family` | `str` | 加载的自定义字体名称 |
+| 属性                   | 类型               | 说明                                                   |
+| ---------------------- | ------------------ | ------------------------------------------------------ |
+| `current_char_id`    | `str`            | 当前编辑的角色 ID                                      |
+| `config`             | `Dict`           | 当前角色的完整配置                                     |
+| `scene`              | `QGraphicsScene` | 2560×1440 画布                                        |
+| `scene_items`        | `Dict`           | 画布元素引用 (bg, portrait, box, name_text, main_text) |
+| `custom_font_family` | `str`            | 加载的自定义字体名称                                   |
 
 #### 界面布局
 
 **Dock 面板**:
+
 - **左侧 (资源库)**: 角色选择、立绘列表、背景列表
 - **右侧 (属性面板)**: 基本信息、样式设置、布局微调、对话框配置
 
@@ -98,30 +101,33 @@ graph TB
 
 #### 关键方法
 
-| 方法 | 签名 | 功能 |
-|------|------|------|
-| `_load_custom_font()` | `() -> None` | 加载霞鹜文楷字体 |
-| `_init_ui()` | `() -> None` | 初始化菜单、Dock、Scene、View |
-| `_create_assets_panel()` | `() -> QWidget` | 创建资源库面板 |
-| `_create_props_panel()` | `() -> QWidget` | 创建属性面板 |
-| `_load_initial_data()` | `() -> None` | 扫描角色目录并初始化 |
-| `create_new_character()` | `() -> None` | 新建角色流程 |
-| `on_character_changed()` | `(index: int) -> None` | 切换角色回调 |
-| `load_config()` | `() -> None` | 加载角色 config.json |
-| `refresh_asset_lists()` | `() -> None` | 刷新立绘/背景列表 |
-| `rebuild_scene()` | `() -> None` | 重建 Graphics Scene |
-| `_collect_scene_data()` | `() -> None` | 从 Scene 采集位置/缩放数据 |
-| `save_config()` | `() -> None` | 保存配置到 JSON |
-| `generate_cache()` | `() -> None` | 调用 prebuild_character 生成缓存 |
-| `preview_render()` | `() -> None` | 调用 CharacterRenderer 实时渲染预览 |
+| 方法                       | 签名                     | 功能                                |
+| -------------------------- | ------------------------ | ----------------------------------- |
+| `_load_custom_font()`    | `() -> None`           | 加载霞鹜文楷字体                    |
+| `_init_ui()`             | `() -> None`           | 初始化菜单、Dock、Scene、View       |
+| `_create_assets_panel()` | `() -> QWidget`        | 创建资源库面板                      |
+| `_create_props_panel()`  | `() -> QWidget`        | 创建属性面板                        |
+| `_load_initial_data()`   | `() -> None`           | 扫描角色目录并初始化                |
+| `create_new_character()` | `() -> None`           | 新建角色流程                        |
+| `on_character_changed()` | `(index: int) -> None` | 切换角色回调                        |
+| `load_config()`          | `() -> None`           | 加载角色 config.yaml                |
+| `refresh_asset_lists()`  | `() -> None`           | 刷新立绘/背景列表                   |
+| `rebuild_scene()`        | `() -> None`           | 重建 Graphics Scene                 |
+| `_collect_scene_data()`  | `() -> None`           | 从 Scene 采集位置/缩放数据          |
+| `save_config()`          | `() -> None`           | 保存配置到 YAML                     |
+| `generate_cache()`       | `() -> None`           | 调用 prebuild_character 生成缓存    |
+| `preview_render()`       | `() -> None`           | 调用 CharacterRenderer 实时渲染预览 |
+| `select_custom_font()`   | `() -> None`           | 选择并导入自定义字体 (v2.3 新增)    |
+| `clear_custom_font()`    | `() -> None`           | 清除自定义字体配置 (v2.3 新增)      |
 
 ---
 
 ### 2️⃣ ResizableTextItem - 可调整文本框
 
-**类路径**: `creator_gui.py:61-207`
+**类路径**: `gui/canvas/items.py`
 
 #### 职责
+
 - 可拖动、可缩放的文本区域预览
 - 8 个调整手柄（四角 + 四边）
 - 实时显示文本、字号、颜色
@@ -129,6 +135,7 @@ graph TB
 #### 核心机制
 
 **状态机**:
+
 ```python
 STATE_IDLE = 0      # 空闲
 STATE_MOVE = 1      # 拖动
@@ -136,6 +143,7 @@ STATE_RESIZE = 2    # 调整大小
 ```
 
 **方向检测** (位掩码):
+
 ```python
 DIR_LEFT = 0x01
 DIR_RIGHT = 0x02
@@ -149,18 +157,19 @@ DIR_BOTTOM_RIGHT = DIR_BOTTOM | DIR_RIGHT  # 右下角
 
 #### 关键方法
 
-| 方法 | 功能 | 关键逻辑 |
-|------|------|----------|
-| `hoverMoveEvent()` | 悬停时更新光标 | 调用 `_hit_test()` 检测手柄位置 |
-| `mousePressEvent()` | 按下鼠标 | 判断点击位置决定进入 MOVE 或 RESIZE 状态 |
-| `mouseMoveEvent()` | 拖动鼠标 | RESIZE 状态时计算新矩形，限制最小尺寸 50×30 |
-| `_hit_test()` | 碰撞检测 | 检测鼠标是否在 HANDLE_SIZE (10px) 范围内 |
-| `_update_cursor()` | 更新光标 | 根据方向设置对应光标（↔ ↕ ⤡ ⤢） |
-| `paint()` | 绘制 | 绘制矩形框 + 文本内容 |
+| 方法                  | 功能           | 关键逻辑                                     |
+| --------------------- | -------------- | -------------------------------------------- |
+| `hoverMoveEvent()`  | 悬停时更新光标 | 调用 `_hit_test()` 检测手柄位置            |
+| `mousePressEvent()` | 按下鼠标       | 判断点击位置决定进入 MOVE 或 RESIZE 状态     |
+| `mouseMoveEvent()`  | 拖动鼠标       | RESIZE 状态时计算新矩形，限制最小尺寸 50×30 |
+| `_hit_test()`       | 碰撞检测       | 检测鼠标是否在 HANDLE_SIZE (10px) 范围内     |
+| `_update_cursor()`  | 更新光标       | 根据方向设置对应光标（↔ ↕ ⤡ ⤢）          |
+| `paint()`           | 绘制           | 绘制矩形框 + 文本内容                        |
 
 #### 缩放逻辑示例
+
 ```python
-# creator_gui.py:134-149
+# gui/canvas/items.py (ResizableTextItem.mouseMoveEvent)
 def mouseMoveEvent(self, event):
     if self._state == self.STATE_RESIZE:
         delta = event.scenePos() - self._start_mouse_pos
@@ -181,15 +190,17 @@ def mouseMoveEvent(self, event):
 
 ### 3️⃣ ScalableImageItem - 可缩放图片
 
-**类路径**: `creator_gui.py:209-223`
+**类路径**: `gui/canvas/items.py`
 
 #### 职责
+
 - 支持鼠标滚轮缩放的图片项
 - 用于立绘的交互式调整
 
 #### 核心逻辑
+
 ```python
-# creator_gui.py:217-223
+# gui/canvas/items.py (ScalableImageItem.wheelEvent)
 def wheelEvent(self, event):
     if self.isSelected():
         factor = 1.05 if event.delta() > 0 else 0.95  # 每次缩放 5%
@@ -201,16 +212,18 @@ def wheelEvent(self, event):
 
 ### 4️⃣ ColorButton - 颜色选择器
 
-**类路径**: `creator_gui.py:230-257`
+**类路径**: `gui/widgets/color_button.py`
 
 #### 职责
+
 - 显示当前颜色的按钮
 - 点击弹出 QColorDialog
 - 发射 `colorChanged` 信号
 
 #### 核心代码
+
 ```python
-# creator_gui.py:249-256
+# gui/widgets/color_button.py (ColorButton.pick_color)
 def pick_color(self):
     initial = QColor(self.current_color[0], self.current_color[1], self.current_color[2])
     new_color = QColorDialog.getColor(initial, self, "选择颜色")
@@ -224,16 +237,18 @@ def pick_color(self):
 
 ### 5️⃣ AssetListWidget - 拖拽资源列表
 
-**类路径**: `creator_gui.py:259-289`
+**类路径**: `gui/widgets/asset_list.py`
 
 #### 职责
+
 - 支持文件拖拽导入
 - 右键菜单删除文件
 - 发射 `fileDropped` 和 `deleteRequested` 信号
 
 #### 拖拽逻辑
+
 ```python
-# creator_gui.py:275-279
+# gui/widgets/asset_list.py (AssetListWidget.dropEvent)
 def dropEvent(self, event: QDropEvent):
     for url in event.mimeData().urls():
         path = url.toLocalFile()
@@ -242,8 +257,9 @@ def dropEvent(self, event: QDropEvent):
 ```
 
 #### 右键删除
+
 ```python
-# creator_gui.py:281-288
+# gui/widgets/asset_list.py (AssetListWidget.contextMenuEvent)
 def contextMenuEvent(self, event):
     item = self.itemAt(event.pos())
     if item:
@@ -258,16 +274,18 @@ def contextMenuEvent(self, event):
 
 ### 6️⃣ NewCharacterDialog - 新建角色对话框
 
-**类路径**: `creator_gui.py:291-323`
+**类路径**: `gui/widgets/dialogs.py`
 
 #### 职责
+
 - 输入角色 ID（文件夹名）和显示名称
 - ID 自动填充到名称（如果名称为空）
 - 返回用户输入数据
 
 #### 关键方法
+
 ```python
-# creator_gui.py:317-322
+# gui/widgets/dialogs.py (NewCharacterDialog)
 def _auto_fill_name(self, text):
     """ID 变化时自动填充名称"""
     if not self.edit_name.text():
@@ -393,7 +411,7 @@ generate_cache()
 ## 🎨 Z-Index 层级体系
 
 ```python
-# creator_gui.py:49-54
+# gui/constants.py
 Z_BG = 0              # 背景层
 Z_PORTRAIT_BOTTOM = 10  # 立绘（底层）
 Z_BOX = 20            # 对话框
@@ -402,6 +420,7 @@ Z_TEXT = 30           # 文本（最上层）
 ```
 
 **层级逻辑**:
+
 - `stand_on_top == False` → 立绘在对话框下方 (Z=10)
 - `stand_on_top == True` → 立绘在对话框上方 (Z=25)
 - 文本始终在最上层 (Z=30)
@@ -448,8 +467,9 @@ Z_TEXT = 30           # 文本（最上层）
 ### 1. Graphics View Framework
 
 **Scene-View 架构**:
+
 ```python
-# creator_gui.py:369-374
+# gui/main_window.py (MainWindow.__init__)
 self.scene = QGraphicsScene(0, 0, CANVAS_W, CANVAS_H)  # 固定 2560×1440
 self.view = QGraphicsView(self.scene)
 self.view.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
@@ -457,8 +477,9 @@ self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)  # 手型拖动
 ```
 
 **自适应缩放**:
+
 ```python
-# creator_gui.py:843-846
+# gui/main_window.py (MainWindow.fit_view)
 def fit_view(self):
     self.view.resetTransform()
     self.view.fitInView(0, 0, CANVAS_W, CANVAS_H, Qt.AspectRatioMode.KeepAspectRatio)
@@ -467,11 +488,12 @@ def fit_view(self):
 
 ---
 
-### 2. 自定义字体加载
+### 2. 默认字体加载
 
 ```python
-# creator_gui.py:354-364
+# gui/main_window.py (MainWindow._load_custom_font)
 def _load_custom_font(self):
+    """加载默认的霞鹜文楷字体"""
     font_path = os.path.join(BASE_PATH, "common", "fonts", "LXGWWenKai-Medium.ttf")
     if os.path.exists(font_path):
         font_id = QFontDatabase.addApplicationFont(font_path)
@@ -483,10 +505,170 @@ def _load_custom_font(self):
 
 ---
 
-### 3. 对话框自动贴底
+### 3. 角色自定义字体管理 (v2.3 新增) 🎨
+
+#### 功能概述
+
+允许为每个角色配置独立的 TrueType 字体文件，实现更个性化的文本渲染效果。
+
+#### UI 组件
+
+**属性面板新增控件** (`gui/panels/props_panel.py:73-86`):
 
 ```python
-# creator_gui.py:982-992
+# 自定义字体区域
+self.lbl_font_file = QLabel("默认字体")  # 状态显示标签
+self.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
+
+self.btn_select_font = QPushButton("选择字体文件...")  # 导入按钮
+self.btn_clear_font = QPushButton("清除")              # 清除按钮
+self.btn_clear_font.setMaximumWidth(60)
+
+# 布局
+row_font = QHBoxLayout()
+row_font.addWidget(self.btn_select_font)
+row_font.addWidget(self.btn_clear_font)
+form_style.addRow("自定义字体:", row_font)
+form_style.addRow("", self.lbl_font_file)  # 状态显示行
+```
+
+#### 核心方法
+
+**1. 选择并导入字体** (`gui/main_window.py:1140-1185`):
+
+```python
+def select_custom_font(self):
+    """选择自定义字体文件"""
+    # 1. 打开文件选择对话框
+    path, _ = QFileDialog.getOpenFileName(
+        self, "选择字体文件", "", "TrueType Fonts (*.ttf *.TTF)"
+    )
+    if not path:
+        return
+
+    # 2. 创建字体目录
+    font_dir = os.path.join(self.char_root, "fonts")
+    if not os.path.exists(font_dir):
+        os.makedirs(font_dir)
+
+    # 3. 复制字体文件到角色目录
+    font_filename = os.path.basename(path)
+    target_path = os.path.join(font_dir, font_filename)
+
+    # 4. 检查文件是否已存在
+    if os.path.exists(target_path):
+        reply = QMessageBox.question(
+            self, "替换确认",
+            f"字体文件 '{font_filename}' 已存在，是否替换？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+    shutil.copy(path, target_path)
+
+    # 5. 更新配置（保存相对路径）
+    relative_path = os.path.join("fonts", font_filename)
+    self.config.setdefault("style", {})["font_file"] = relative_path
+
+    # 6. 更新 UI 显示
+    self.props_panel.lbl_font_file.setText(font_filename)
+    self.props_panel.lbl_font_file.setStyleSheet("color: green; font-size: 10px;")
+
+    self.cache_outdated = True
+    QMessageBox.information(self, "成功",
+        f"字体已导入: {font_filename}\n\n请保存配置并重新生成缓存以应用更改。")
+```
+
+**2. 清除自定义字体** (`gui/main_window.py:1187-1202`):
+
+```python
+def clear_custom_font(self):
+    """清除自定义字体"""
+    # 1. 移除配置中的字体设置
+    style = self.config.get("style", {})
+    if "font_file" in style:
+        del style["font_file"]
+
+        # 2. 更新 UI 显示
+        self.props_panel.lbl_font_file.setText("默认字体")
+        self.props_panel.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
+
+        self.cache_outdated = True
+        QMessageBox.information(self, "成功",
+            "已清除自定义字体，将使用默认字体。\n\n请保存配置并重新生成缓存以应用更改。")
+```
+
+**3. 加载字体配置** (`gui/main_window.py:441-451`):
+
+```python
+# 在 sync_props_from_config() 中更新字体显示
+font_file = style.get("font_file")
+if font_file:
+    font_name = os.path.basename(font_file)
+    pp.lbl_font_file.setText(font_name)
+    pp.lbl_font_file.setStyleSheet("color: green; font-size: 10px;")
+else:
+    pp.lbl_font_file.setText("默认字体")
+    pp.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
+```
+
+#### 配置存储格式
+
+```yaml
+# assets/characters/<角色ID>/config.yaml
+style:
+  font_file: fonts/lolita.ttf  # 相对于角色目录的路径
+  basic:
+    font_size: 40
+    # ...
+```
+
+#### 使用流程
+
+```
+1. 用户点击"选择字体文件..."
+   └─ 打开文件选择对话框（过滤 .ttf 文件）
+
+2. 选择字体文件
+   └─ 自动创建 assets/characters/<角色>/fonts/ 目录
+
+3. 复制字体文件
+   ├─ 检查是否已存在同名文件
+   ├─ 询问是否替换（如果存在）
+   └─ 复制到角色的 fonts/ 目录
+
+4. 更新配置
+   ├─ 保存相对路径到 config["style"]["font_file"]
+   └─ 更新 UI 状态显示（绿色显示字体名）
+
+5. 标记缓存过期
+   └─ cache_outdated = True
+
+6. 提示用户
+   └─ "请保存配置并重新生成缓存以应用更改"
+```
+
+#### 状态显示逻辑
+
+| 状态 | 显示文本 | 样式 | 说明 |
+|------|---------|------|------|
+| 未设置 | "默认字体" | `color: gray` | 使用霞鹜文楷 |
+| 已设置 | 字体文件名 | `color: green` | 使用自定义字体 |
+
+#### 注意事项
+
+- **文件格式**: 仅支持 `.ttf` (TrueType Font) 格式
+- **路径存储**: 配置中保存相对路径（如 `fonts/lolita.ttf`），便于项目迁移
+- **缓存更新**: 修改字体后必须重新生成缓存才能在主程序中生效
+- **文件管理**: 字体文件不会自动删除，清除配置只是移除引用
+
+---
+
+### 4. 对话框自动贴底
+
+```python
+# gui/main_window.py (MainWindow.select_dialog_box)
 def select_dialog_box(self):
     # ...
     pix = QPixmap(target_path)
@@ -503,7 +685,7 @@ def select_dialog_box(self):
 ### 4. 配置合并策略
 
 ```python
-# creator_gui.py:675-681
+# gui/main_window.py (MainWindow._merge_dicts)
 def _merge_dicts(self, base, update):
     """递归合并配置，保留默认值同时应用用户修改"""
     for k, v in update.items():
@@ -519,7 +701,7 @@ def _merge_dicts(self, base, update):
 ### 5. Scene 数据采集
 
 ```python
-# creator_gui.py:1096-1120
+# gui/main_window.py (MainWindow._collect_scene_data)
 def _collect_scene_data(self):
     layout = self.config.setdefault("layout", {})
 
@@ -547,10 +729,13 @@ def _collect_scene_data(self):
 ### 与 Core 模块的集成
 
 ```
-creator_gui.py
+creator_gui.py (入口 ~30 行)
+  └─ 启动 gui.MainWindow
+
+gui/main_window.py (主编辑器)
   ├─ 导入 core.utils
-  │   ├─ load_global_config() → 获取上次编辑的角色
-  │   └─ save_global_config() → 保存当前角色
+  │   ├─ load_global_config() → 获取上次编辑的角色 (从 global_config.yaml)
+  │   └─ save_global_config() → 保存当前角色 (到 global_config.yaml)
   │
   ├─ 导入 core.renderer
   │   └─ CharacterRenderer.render() → 预览渲染 (preview_render)

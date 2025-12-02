@@ -25,7 +25,7 @@
     * **自由布局**：鼠标拖拽调整立绘、文字区域的位置和大小。
     * **多分辨率支持**：从 720p 到 4K，自由切换画布尺寸。
     * **自动贴合**：智能计算对话框位置，自动贴合底部。
-* **🎨 高度定制化**：支持自定义字体（内置霞鹜文楷）、字号、颜色、背景图、对话框样式。
+* **🎨 高度定制化**：支持为每个角色配置独立字体（内置霞鹜文楷）、字号、颜色、背景图、对话框样式、台词前后缀。
 * **⚡ 高性能缓存**：三级缓存体系（内存 → 磁盘 → 预缩放），生成速度极快，几乎无延迟。
 
 ## 🖼️ 效果展示
@@ -120,10 +120,11 @@ My_Chat_Window.../
 │   │   └── [角色ID]/
 │   │       ├── portrait/     # 立绘文件夹
 │   │       ├── background/   # 背景文件夹
-│   │       ├── config.json   # 角色配置
+│   │       ├── fonts/        # 自定义字体文件夹 (可选)
+│   │       ├── config.yaml   # 角色配置
 │   │       └── textbox_bg.png
 │   ├── common/               # 公共资源
-│   │   ├── fonts/            # 字体 (霞鹜文楷)
+│   │   ├── fonts/            # 默认字体 (霞鹜文楷)
 │   │   └── background/       # 通用背景
 │   ├── cache/                # 预渲染缓存 (自动生成)
 │   └── pre_scaled/           # 预缩放背景 (自动生成)
@@ -146,7 +147,7 @@ My_Chat_Window.../
 │
 ├── creator_gui.py            # 编辑器入口
 ├── main.py                   # 主程序入口
-├── global_config.json        # 全局配置
+├── global_config.yaml        # 全局配置
 └── requirements.txt          # 依赖列表
 ```
 
@@ -154,48 +155,18 @@ My_Chat_Window.../
 
 ## ⚙️ 高级配置
 
-### 全局配置 (global_config.json)
+### 全局配置 (global_config.yaml)
 
-```json
-{
-    "current_character": "your_waifu",
-    "trigger_hotkey": "enter",
-    "global_hotkeys": {
-        "copy_to_clipboard": "ctrl+shift+c",
-        "show_character": "ctrl+shift+v"
-    },
-    "render": {
-        "cache_format": "jpeg",
-        "jpeg_quality": 90
-    },
-    "style": {
-        "mode": "basic",
-        "text_wrapper": {
-            "type": "preset",
-            "preset": "corner_single",
-            "prefix": "「",
-            "suffix": "」"
-        },
-        "basic": {
-            "font_size": 40,
-            "text_color": [255, 255, 255],
-            "name_font_size": 30,
-            "name_color": [255, 85, 255]
-        },
-        "advanced": {
-            "name_layers": {
-                "default": [
-                    {
-                        "text": "{name}",
-                        "position": [0, 0],
-                        "font_color": [255, 255, 255],
-                        "font_size": 30
-                    }
-                ]
-            }
-        }
-    }
-}
+```yaml
+current_character: your_waifu          # 编辑器启动时默认选择的角色
+trigger_hotkey: enter                  # 控制台模式下触发图片生成的快捷键
+global_hotkeys:
+  copy_to_clipboard: ctrl+shift+c     # 控制台模式: 复制最后一张图到剪贴板
+  show_character: ctrl+shift+v        # 控制台模式: 显示/隐藏角色窗口
+render:
+  cache_format: jpeg                  # 预构建缓存格式：jpeg / png
+  jpeg_quality: 90                    # cache_format 为 jpeg 时使用的质量
+  use_memory_canvas_cache: true       # 是否在内存缓存画布，减少 IO
 ```
 
 | 配置项 | 说明 |
@@ -205,36 +176,71 @@ My_Chat_Window.../
 | `global_hotkeys.show_character` | 显示角色窗口的快捷键 |
 | `cache_format` | 缓存格式：`jpeg`（小而快）或 `png`（无损） |
 | `jpeg_quality` | JPEG 质量 (1-100) |
-| `style.text_wrapper.type` | 台词前后缀模式：`none`、`preset`（内置「」「」/『』『』）、`custom` |
-| `style.mode` | 名字样式模式：`basic` 使用字号/颜色，`advanced` 启用 YAML 分层 |
-| `style.advanced.name_layers` | 高级名字 YAML 片段，键为角色名，值为图层数组（支持 `{name}` 占位） |
+| `use_memory_canvas_cache` | 是否在内存缓存画布，减少 IO |
 
-> 画布分辨率现由每个角色 `config.json` 的 `layout._canvas_size` 决定，切换角色时会自动加载对应分辨率。
+> 注意：台词前后缀和高级名称样式配置已移至各角色的 `config.yaml` 文件中的 `style` 字段。
+> 画布分辨率由每个角色 `config.yaml` 的 `layout._canvas_size` 决定，切换角色时会自动加载对应分辨率。
 
-#### 名字高级样式示例
+### 角色配置 (assets/characters/[角色ID]/config.yaml)
 
-```jsonc
-"name_layers": {
-    "warden": [
-        {"text": "典", "position": [0, 0], "font_color": [195, 209, 231], "font_size": 196},
-        {"text": "狱", "position": [200, 100], "font_color": [255, 255, 255], "font_size": 92},
-        {"text": "长", "position": [300, 50], "font_color": [255, 255, 255], "font_size": 147}
-    ],
-    "default": [
-        {"text": "{name}", "position": [0, 0], "font_color": [255, 85, 255], "font_size": 32}
-    ]
-}
+每个角色的样式配置在其各自的 `config.yaml` 文件中：
+
+```yaml
+style:
+  mode: basic                       # 名字样式模式: basic / advanced
+  font_file: fonts/custom.ttf       # 自定义字体路径 (可选，相对于角色目录)
+  text_wrapper:
+    type: preset                    # 台词前后缀类型: none / preset / custom
+    preset: corner_single           # 预设类型: corner_single (「」) / corner_double (『』)
+    prefix: "「"
+    suffix: "」"
+  basic:
+    font_size: 40
+    text_color: [255, 255, 255]
+    name_font_size: 30
+    name_color: [255, 85, 255]
+  advanced:
+    name_layers:
+      warden:                       # 特定角色名的高级样式
+        - text: "典"
+          position: [0, 0]
+          font_color: [195, 209, 231]
+          font_size: 196
+        - text: "狱"
+          position: [200, 100]
+          font_color: [255, 255, 255]
+          font_size: 92
+        - text: "长"
+          position: [300, 50]
+          font_color: [255, 255, 255]
+          font_size: 147
+      default:                      # 默认样式
+        - text: "{name}"
+          position: [0, 0]
+          font_color: [255, 85, 255]
+          font_size: 32
 ```
 
-字段说明：
-- `text`：要绘制的字符，可使用 `{name}` 占位符自动替换为当前角色名称。
-- `position`：相对 `layout.name_pos` 的偏移量 `[x, y]`，单位为像素。原点仍由编辑器中拖拽的名称坐标决定。
-- `font_color`：RGB 颜色数组。
-- `font_size`：字号，单位为像素。
-- `font_file`：可选，指定单层使用的字体文件（相对角色目录或绝对路径）。
-- `name_layers` 字典的键为角色名称；若找不到匹配的键，将使用 `default` 作为回退。
+#### 样式配置说明
 
-> GUI 的属性面板中可以直接切换台词前后缀（「」「」 / 『』『』 / 自定义），并展开“高级名称 YAML”输入框来粘贴上面的结构。
+- **自定义字体** (v2.3 新增)：通过 `font_file` 字段为角色指定专属字体，支持 `.ttf` 格式。路径相对于角色目录（如 `fonts/lolita.ttf`）。未设置时使用默认的霞鹜文楷字体。
+- **台词前后缀**：`text_wrapper.type` 可选 `none`、`preset`（内置「」「」/『』『』）、`custom`（自定义前后缀）
+- **名字样式模式**：`mode` 可选 `basic`（使用字号/颜色）或 `advanced`（启用多层叠加）
+- **高级名称配置**：`name_layers` 支持为不同角色名配置多层文本效果，键为角色名，值为图层数组（支持 `{name}` 占位符）
+
+#### 高级名称字段说明
+
+- `text`：要绘制的字符，可使用 `{name}` 占位符自动替换为当前角色名称
+- `position`：相对 `layout.name_pos` 的偏移量 `[x, y]`，单位为像素
+- `font_color`：RGB 颜色数组
+- `font_size`：字号，单位为像素
+- `name_layers` 字典的键为角色名称；若找不到匹配的键，将使用 `default` 作为回退
+
+#### 在 GUI 中配置
+
+- **自定义字体**：在属性面板的"自定义字体"区域，点击"选择字体文件..."导入 `.ttf` 字体，字体会自动复制到角色的 `fonts/` 目录
+- **台词前后缀**：在属性面板直接切换（「」「」 / 『』『』 / 自定义）
+- **高级名称**：勾选"启用高级名称 YAML"后展开输入框编辑 `name_layers` 配置
 
 ---
 

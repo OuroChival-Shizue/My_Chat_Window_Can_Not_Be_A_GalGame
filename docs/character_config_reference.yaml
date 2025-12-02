@@ -4,6 +4,7 @@ meta:
   name: 茅崎夕樱    # 在对话框中显示的角色名称
 style:
   mode: advanced     # 名称渲染模式：basic / advanced
+  font_file: fonts/custom.ttf  # (可选) 自定义字体路径，相对于角色目录，支持 .ttf 格式
   text_wrapper:
     type: preset         # 台词包装类型：none / preset / custom
     preset: corner_single  # 选择 preset 时使用的预设，corner_single=「」

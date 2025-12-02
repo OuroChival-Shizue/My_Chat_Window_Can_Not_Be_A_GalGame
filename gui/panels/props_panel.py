@@ -70,6 +70,21 @@ class PropsPanel(QScrollArea):
         row_name.addWidget(self.btn_name_color)
         form_style.addRow("名字 (大小/色):", row_name)
 
+        # 自定义字体
+        self.lbl_font_file = QLabel("默认字体")
+        self.lbl_font_file.setStyleSheet("color: gray; font-size: 10px;")
+        self.btn_select_font = QPushButton("选择字体文件...")
+        self.btn_clear_font = QPushButton("清除")
+        self.btn_clear_font.setMaximumWidth(60)
+
+        row_font = QHBoxLayout()
+        row_font.setContentsMargins(0, 0, 0, 0)
+        row_font.setSpacing(4)
+        row_font.addWidget(self.btn_select_font)
+        row_font.addWidget(self.btn_clear_font)
+        form_style.addRow("自定义字体:", row_font)
+        form_style.addRow("", self.lbl_font_file)
+
         self.check_name_advanced = QCheckBox("启用高级名称 YAML")
         form_style.addRow(self.check_name_advanced)
 

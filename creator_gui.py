@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Box-of-GalGame-Sister 可视化编辑器
+My Chat Window Can Not Be A GalGame 可视化编辑器
 启动入口（重构后）
 """
 import sys

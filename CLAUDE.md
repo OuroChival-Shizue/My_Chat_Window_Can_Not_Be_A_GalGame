@@ -3,8 +3,8 @@
 
 # 🎮 My Chat Window Can Not Be A GalGame - AI 上下文文档
 
-**文档版本**: 2.2 (手动发送模式)
-**生成时间**: 2025-11-30
+**文档版本**: 2.3 (自定义字体支持)
+**生成时间**: 2025-12-03
 **项目类型**: Python 桌面应用 (Windows)
 **核心技术栈**: PyQt6, Pillow, keyboard, pywin32
 **Python 版本**: 3.10+
@@ -20,6 +20,7 @@
 - 🚀 **自定义触发**: 支持用户自定义触发快捷键（默认 Enter，推荐 Shift+Enter）
 - 🖼️ **预览后发送**: 图片生成后粘贴到输入框，用户确认无误后手动按 Enter 发送
 - 🎭 **实时表情切换**: Alt+1~9 快捷键切换角色立绘
+- 🎨 **自定义字体**: 支持为每个角色配置独立的 TrueType 字体
 - 🛠️ **可视化编辑器**: 所见即所得的角色配置体验
 - ⚡ **高性能缓存**: 预处理机制 + 内存缓存，生成速度极快
 - 🔄 **热重载配置**: Ctrl+F5 无需重启即可应用新设置
@@ -58,7 +59,7 @@ graph TB
         O[(assets/characters/<br/>角色数据)]
         P[(assets/cache/<br/>预渲染缓存)]
         Q[(assets/pre_scaled/<br/>预缩放背景)]
-        R[global_config.json<br/>+trigger_hotkey]
+        R[global_config.yaml<br/>+trigger_hotkey]
     end
 
     A --> I
@@ -136,8 +137,8 @@ graph TB
 ```text
 项目根目录/
 ├── main.py                     # 主程序入口
-├── creator_gui.py              # 编辑器入口 (精简后)
-├── global_config.json          # 全局配置 (含 trigger_hotkey)
+├── creator_gui.py              # 编辑器入口 (精简后 ~30 行)
+├── global_config.yaml          # 全局配置 (含 trigger_hotkey)
 │
 ├── gui/                        # GUI 模块
 │   ├── __init__.py             # 暴露 MainWindow
@@ -172,13 +173,15 @@ graph TB
 └── assets/
     ├── characters/             # 角色数据
     │   └── <char_id>/
-    │       ├── config.json
-    │       ├── portrait/
-    │       ├── background/
-    │       └── textbox_bg.png
+    │       ├── config.yaml     # 角色配置文件
+    │       ├── portrait/       # 立绘目录
+    │       ├── background/     # 背景目录
+    │       ├── fonts/          # 自定义字体目录 (可选)
+    │       │   └── custom.ttf
+    │       └── textbox_bg.png  # 对话框背景
     ├── common/
     │   ├── fonts/
-    │   │   └── LXGWWenKai-Medium.ttf
+    │   │   └── LXGWWenKai-Medium.ttf  # 默认字体
     │   └── background/         # 公共背景
     ├── cache/                  # 预渲染缓存
     │   └── <char_id>/
@@ -257,7 +260,7 @@ graph TB
 
 ```mermaid
 graph LR
-    A[SettingsDialog] -->|保存| B[global_config.json]
+    A[SettingsDialog] -->|保存| B[global_config.yaml]
     B -->|trigger_hotkey| C[InputListener]
     D[Ctrl+F5] -->|reload_config| C
     C -->|动态注册| E[keyboard.add_hotkey]
@@ -313,7 +316,7 @@ class SettingsDialog(QDialog):
     def _save_and_close(self):
         # 验证快捷键有效性
         # 检查是否与系统快捷键冲突
-        # 保存到 global_config.json
+        # 保存到 global_config.yaml
 ```
 
 ### `main_window.py` 变更
@@ -342,6 +345,9 @@ def open_settings(self):
 ### `utils.py` - 配置管理
 
 ```python
+GLOBAL_CONFIG_FILENAME = "global_config.yaml"
+LEGACY_GLOBAL_CONFIG_FILENAME = "global_config.json"
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "current_character": "yuraa",
     "trigger_hotkey": "enter",  # 触发快捷键
@@ -357,7 +363,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 ```
 
-- `normalize_style()`：为每个角色的 `style` 字段补齐 `mode`、`text_wrapper`、`basic`、`advanced` 结构，兼容旧版 `font_size/name_color` 写法，并自动处理台词前后缀与高级名字 YAML。
+**核心函数**:
+- `load_global_config()`：加载 `global_config.yaml`（自动兼容旧的 JSON 格式）
+- `save_global_config()`：保存配置到 YAML 文件
+- `normalize_style()`：为每个角色的 `style` 字段补齐 `mode`、`text_wrapper`、`basic`、`advanced` 结构，兼容旧版 `font_size/name_color` 写法，并自动处理台词前后缀与高级名字配置。
 
 ### `engine.py` - 主引擎 (v2.2 更新) ⭐
 
@@ -457,60 +466,66 @@ def reload_config(self):
 
 ## 📄 配置文件结构
 
-### `global_config.json`
+### `global_config.yaml`
 
-```json
-{
-    "current_character": "yuraa",
-    "trigger_hotkey": "shift+enter",
-    "global_hotkeys": {
-        "copy_to_clipboard": "ctrl+shift+c",
-        "show_character": "ctrl+shift+v"
-    },
-    "render": {
-        "cache_format": "jpeg",
-        "jpeg_quality": 90,
-        "use_memory_canvas_cache": true
-    }
-}
+```yaml
+current_character: yuraa          # 编辑器启动时默认选择的角色
+trigger_hotkey: shift+enter       # 控制台模式下触发图片生成的快捷键
+global_hotkeys:
+  copy_to_clipboard: ctrl+shift+c # 控制台模式: 复制最后一张图到剪贴板
+  show_character: ctrl+shift+v    # 控制台模式: 显示/隐藏角色窗口
+render:
+  cache_format: jpeg              # 预构建缓存格式：jpeg / png
+  jpeg_quality: 90                # cache_format 为 jpeg 时使用的质量
+  use_memory_canvas_cache: true   # 是否在内存缓存画布，减少 IO
 ```
 
+> 注意：配置文件已从 JSON 格式迁移到 YAML 格式，代码会自动兼容旧的 `global_config.json` 文件。
 > 画布分辨率改由各角色 `config.json` 中的 `layout._canvas_size` 控制，切换角色时会自动加载对应分辨率。
 
-### 角色 `style` 结构 (`assets/characters/<id>/config.json`)
+### 角色 `style` 结构 (`assets/characters/<id>/config.yaml`)
 
-```jsonc
-"style": {
-    "mode": "advanced",
-    "text_wrapper": {
-        "type": "preset",
-        "preset": "corner_double",
-        "prefix": "『",
-        "suffix": "』"
-    },
-    "basic": {
-        "font_size": 40,
-        "text_color": [255, 255, 255],
-        "name_font_size": 32,
-        "name_color": [255, 85, 255]
-    },
-    "advanced": {
-        "name_layers": {
-            "warden": [
-                {"text": "典", "position": [0, 0], "font_color": [195, 209, 231], "font_size": 196},
-                {"text": "狱", "position": [200, 100], "font_color": [255, 255, 255], "font_size": 92},
-                {"text": "长", "position": [300, 50], "font_color": [255, 255, 255], "font_size": 147}
-            ],
-            "default": [
-                {"text": "{name}", "position": [0, 0], "font_color": [255, 85, 255], "font_size": 32}
-            ]
-        }
-    }
-}
+```yaml
+style:
+  mode: advanced                    # 名称样式模式: basic / advanced
+  font_file: fonts/lolita.ttf       # 自定义字体路径 (可选，相对于角色目录)
+  text_wrapper:
+    type: preset                    # 台词前后缀类型: none / preset / custom
+    preset: corner_double           # 预设类型: corner_single (「」) / corner_double (『』)
+    prefix: "『"
+    suffix: "』"
+  basic:
+    font_size: 40
+    text_color: [255, 255, 255]
+    name_font_size: 32
+    name_color: [255, 85, 255]
+  advanced:
+    name_layers:
+      warden:                       # 特定角色名的高级样式
+        - text: "典"
+          position: [0, 0]
+          font_color: [195, 209, 231]
+          font_size: 196
+        - text: "狱"
+          position: [200, 100]
+          font_color: [255, 255, 255]
+          font_size: 92
+        - text: "长"
+          position: [300, 50]
+          font_color: [255, 255, 255]
+          font_size: 147
+      default:                      # 默认样式
+        - text: "{name}"
+          position: [0, 0]
+          font_color: [255, 85, 255]
+          font_size: 32
 ```
 
-- GUI 属性面板新增「台词前后缀」组合框，可选 `none` / 「」「」 / 『』『』 / 自定义前后缀，并直接写入 `text_wrapper`。
-- 勾选“启用高级名称 YAML”后会展开输入框，可编辑 `name_layers` 并点击“应用 YAML”即时保存，渲染器会按相对坐标叠加多层文本。
+**样式配置说明**:
+- **自定义字体** (v2.3 新增): 通过 `font_file` 字段指定角色专属字体，路径相对于角色目录（如 `fonts/lolita.ttf`）。未设置时使用默认的霞鹜文楷字体。
+- **台词前后缀**: GUI 属性面板新增「台词前后缀」组合框，可选 `none` / 「」「」 / 『』『』 / 自定义前后缀，并直接写入 `text_wrapper`。
+- **高级名称配置**: 勾选"启用高级名称配置"后会展开输入框，可编辑 `name_layers` 并点击"应用配置"即时保存，渲染器会按相对坐标叠加多层文本。
+- 注意：样式配置存储在各角色的 `config.yaml` 中，而非全局配置文件。
 
 ### 快捷键格式说明
 
@@ -569,6 +584,7 @@ GUI: SettingsDialog
   │   ├─ 验证快捷键有效性
   │   ├─ 检查冲突 (esc, ctrl+c, ctrl+v 等)
   │   └─ save_global_config({"trigger_hotkey": "shift+enter"})
+  │       └─ 保存到 global_config.yaml
   └─ 提示用户按 Ctrl+F5 应用
 
 main.py: InputListener
@@ -625,6 +641,29 @@ python creator_gui.py
 python main.py
 
 # 5. 按 Ctrl+F5 应用新快捷键
+```
+
+### 配置自定义字体 (v2.3 新增)
+
+```bash
+# 1. 运行编辑器
+python creator_gui.py
+
+# 2. 选择要配置的角色
+
+# 3. 在右侧属性面板找到"自定义字体"
+#    点击"选择字体文件..."
+
+# 4. 选择 .ttf 字体文件
+#    字体会自动复制到 assets/characters/<角色>/fonts/
+
+# 5. 保存配置 (Ctrl+S)
+
+# 6. 重新生成缓存 (F5)
+#    工具 → 生成缓存
+
+# 7. 预览效果
+#    工具 → 渲染预览
 ```
 
 ---
@@ -693,6 +732,7 @@ def _trigger_submit(self):
 | v2.0 | GUI 模块化重构                    |
 | v2.1 | 自定义快捷键、热重载              |
 | v2.2 | ⭐ 移除自动发送，改为手动确认发送 |
+| v2.3 | 🎨 自定义字体支持、YAML 配置优化  |
 
 ---
 
