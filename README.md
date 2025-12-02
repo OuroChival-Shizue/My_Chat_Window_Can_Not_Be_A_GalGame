@@ -33,7 +33,7 @@
 
 ## 🖼️ 效果展示
 
-<img width="2560" height="1321" alt="编辑器界面" src="https://github.com/user-attachments/assets/68a23079-4a58-4791-8c27-5e2a205f82a6" />
+<img width="2560" height="1360" alt="编辑器界面" src="https://github.com/user-attachments/assets/a51dc64c-bdf0-462a-ab5e-e82e6d4ddad5" />
 <img width="2560" height="1440" alt="渲染效果" src="https://github.com/user-attachments/assets/76ae7636-2367-440b-b6b2-d4f92725e9af" />
 
 ---
