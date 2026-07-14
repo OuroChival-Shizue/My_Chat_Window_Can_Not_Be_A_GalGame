@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GalGame Chat Studio",
+  "version": "0.1.0",
+  "identifier": "com.ourochival.galgamechatstudio",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "GalGame Chat Studio",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1024,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "OuroChival-Shizue",
+    "copyright": "Copyright (c) 2026 OuroChival-Shizue",
+    "category": "Utility",
+    "shortDescription": "Modern desktop editor and runtime for galgame-style chat windows.",
+    "longDescription": "GalGame Chat Studio is a Windows-first Tauri desktop app for editing character assets, previewing layouts, and running the hotkey-driven chat-window renderer.",
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "allowDowngrades": true,
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": true,
+        "compression": "lzma",
+        "startMenuFolder": "GalGame Chat Studio"
+      }
+    }
+  }
+}
