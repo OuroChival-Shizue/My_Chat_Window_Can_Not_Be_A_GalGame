@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "GalGame Chat Studio",
+        "title": "GalGame Chat Studio - GalGame 聊天工作台",
         "width": 1280,
         "height": 820,
         "minWidth": 1024,
@@ -31,8 +31,8 @@
     "publisher": "OuroChival-Shizue",
     "copyright": "Copyright (c) 2026 OuroChival-Shizue",
     "category": "Utility",
-    "shortDescription": "Modern desktop editor and runtime for galgame-style chat windows.",
-    "longDescription": "GalGame Chat Studio is a Windows-first Tauri desktop app for editing character assets, previewing layouts, and running the hotkey-driven chat-window renderer.",
+    "shortDescription": "GalGame 风格聊天窗口的现代桌面编辑器与运行时。",
+    "longDescription": "GalGame Chat Studio 是一款 Windows 优先的 Tauri 桌面应用，用于编辑角色素材、预览布局，并运行快捷键驱动的聊天窗口渲染器。",
     "icon": [
       "icons/icon.ico"
     ],

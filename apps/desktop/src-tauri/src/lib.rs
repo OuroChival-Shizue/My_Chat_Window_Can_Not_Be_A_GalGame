@@ -46,15 +46,15 @@ enum AppError {
     Json(#[from] serde_json::Error),
     #[error("角色不存在: {0}")]
     CharacterNotFound(String),
-    #[error("Invalid input: {0}")]
+    #[error("输入无效：{0}")]
     InvalidInput(String),
-    #[error("Asset not found: {0}")]
+    #[error("素材不存在：{0}")]
     AssetNotFound(String),
-    #[error("Image error: {0}")]
+    #[error("图像错误：{0}")]
     Image(#[from] image::ImageError),
-    #[error("Clipboard error: {0}")]
+    #[error("剪贴板错误：{0}")]
     Clipboard(String),
-    #[error("Hotkey error: {0}")]
+    #[error("快捷键错误：{0}")]
     Hotkey(String),
 }
 
@@ -262,7 +262,7 @@ fn lock_engine_state<'a>(
 ) -> Result<std::sync::MutexGuard<'a, EngineState>, AppError> {
     state
         .lock()
-        .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))
+        .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -527,15 +527,15 @@ fn wide_double_nul(parts: &[&str]) -> Vec<u16> {
 fn asset_dialog_filter(kind: &AssetKind) -> Vec<u16> {
     match kind {
         AssetKind::Portrait | AssetKind::Background | AssetKind::DialogBox => wide_double_nul(&[
-            "Image files (*.png;*.jpg;*.jpeg)",
+            "图像文件 (*.png;*.jpg;*.jpeg)",
             "*.png;*.jpg;*.jpeg",
-            "All files (*.*)",
+            "所有文件 (*.*)",
             "*.*",
         ]),
         AssetKind::Font => wide_double_nul(&[
-            "Font files (*.ttf;*.otf)",
+            "字体文件 (*.ttf;*.otf)",
             "*.ttf;*.otf",
-            "All files (*.*)",
+            "所有文件 (*.*)",
             "*.*",
         ]),
     }
@@ -545,10 +545,10 @@ fn asset_dialog_filter(kind: &AssetKind) -> Vec<u16> {
 fn pick_file_with_windows_dialog(kind: &AssetKind) -> Result<Option<String>, AppError> {
     let filter = asset_dialog_filter(kind);
     let title = wide_nul(match kind {
-        AssetKind::Portrait => "Import portrait image",
-        AssetKind::Background => "Import background image",
-        AssetKind::Font => "Import font file",
-        AssetKind::DialogBox => "Import dialog box image",
+        AssetKind::Portrait => "导入立绘图片",
+        AssetKind::Background => "导入背景图片",
+        AssetKind::Font => "导入字体文件",
+        AssetKind::DialogBox => "导入对话框图片",
     });
     let mut filename = vec![0u16; 32768];
     let mut dialog = OPENFILENAMEW {
@@ -598,7 +598,7 @@ fn pick_file_with_windows_dialog(kind: &AssetKind) -> Result<Option<String>, App
 #[cfg(not(target_os = "windows"))]
 fn pick_file_with_windows_dialog(_kind: &AssetKind) -> Result<Option<String>, AppError> {
     Err(AppError::InvalidInput(
-        "Native file picker is currently implemented for Windows only".to_string(),
+        "原生文件选择器目前仅支持 Windows".to_string(),
     ))
 }
 
@@ -636,7 +636,7 @@ fn sanitize_character_id(id: &str) -> Result<String, AppError> {
     let trimmed = id.trim();
     if trimmed.is_empty() {
         return Err(AppError::InvalidInput(
-            "Character ID cannot be empty".to_string(),
+            "角色 ID 不能为空".to_string(),
         ));
     }
     if !trimmed
@@ -644,7 +644,7 @@ fn sanitize_character_id(id: &str) -> Result<String, AppError> {
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
     {
         return Err(AppError::InvalidInput(
-            "Character ID may only contain letters, numbers, underscores, and hyphens".to_string(),
+            "角色 ID 只能包含字母、数字、下划线和连字符".to_string(),
         ));
     }
     Ok(trimmed.to_string())
@@ -970,7 +970,7 @@ fn apply_text_wrapper(text: &str, wrapper: &TextWrapper) -> String {
 
 fn load_font_arc(path: &Path) -> Result<FontArc, AppError> {
     FontArc::try_from_vec(fs::read(path)?)
-        .map_err(|_| AppError::InvalidInput(format!("Failed to load font: {}", path.display())))
+        .map_err(|_| AppError::InvalidInput(format!("字体加载失败：{}", path.display())))
 }
 
 fn draw_basic_name(canvas: &mut RgbaImage, font: &FontArc, config: &CharacterConfig, name: &str) {
@@ -1088,7 +1088,7 @@ fn draw_text_layers(
 ) -> Result<(), AppError> {
     let text_font_path =
         resolve_font_path(root, char_id, char_root, config.style.font_file.as_deref())
-            .ok_or_else(|| AppError::AssetNotFound("No usable font was found".to_string()))?;
+            .ok_or_else(|| AppError::AssetNotFound("未找到可用字体".to_string()))?;
     let text_font = load_font_arc(&text_font_path)?;
     let name_font = if let Some(name_font_path) = resolve_font_path(
         root,
@@ -1100,7 +1100,7 @@ fn draw_text_layers(
     } else {
         text_font.clone()
     };
-    let name = config.meta.name.as_deref().unwrap_or("Character");
+    let name = config.meta.name.as_deref().unwrap_or("角色");
     let advanced_drawn =
         draw_advanced_name(canvas, root, char_id, char_root, &name_font, config, name)?;
     if !advanced_drawn {
@@ -1160,19 +1160,19 @@ fn encode_png_bytes(img: &RgbaImage) -> Result<Vec<u8>, AppError> {
 
 fn rgba_to_cf_dib_bytes(img: &RgbaImage) -> Result<Vec<u8>, AppError> {
     let width = i32::try_from(img.width())
-        .map_err(|_| AppError::Clipboard("Image width is too large for a DIB".to_string()))?;
+        .map_err(|_| AppError::Clipboard("图像宽度过大，无法写入 DIB".to_string()))?;
     let height = i32::try_from(img.height())
-        .map_err(|_| AppError::Clipboard("Image height is too large for a DIB".to_string()))?;
+        .map_err(|_| AppError::Clipboard("图像高度过大，无法写入 DIB".to_string()))?;
     let pixel_bytes = u64::from(img.width())
         .checked_mul(u64::from(img.height()))
         .and_then(|pixels| pixels.checked_mul(4))
         .ok_or_else(|| {
-            AppError::Clipboard("Image is too large for clipboard memory".to_string())
+            AppError::Clipboard("图像过大，无法写入剪贴板内存".to_string())
         })?;
     let pixel_bytes_u32 = u32::try_from(pixel_bytes)
-        .map_err(|_| AppError::Clipboard("Image is too large for a DIB".to_string()))?;
+        .map_err(|_| AppError::Clipboard("图像过大，无法写入 DIB".to_string()))?;
     let capacity = 40usize.checked_add(pixel_bytes as usize).ok_or_else(|| {
-        AppError::Clipboard("Image is too large for clipboard memory".to_string())
+        AppError::Clipboard("图像过大，无法写入剪贴板内存".to_string())
     })?;
 
     let mut out = Vec::with_capacity(capacity);
@@ -1210,11 +1210,11 @@ impl Drop for ClipboardGuard {
 unsafe fn alloc_global_bytes(bytes: &[u8]) -> Result<HGLOBAL, AppError> {
     let handle = GlobalAlloc(GMEM_MOVEABLE, bytes.len());
     if handle.is_null() {
-        return Err(AppError::Clipboard("GlobalAlloc failed".to_string()));
+        return Err(AppError::Clipboard("GlobalAlloc 调用失败".to_string()));
     }
     let target = GlobalLock(handle);
     if target.is_null() {
-        return Err(AppError::Clipboard("GlobalLock failed".to_string()));
+        return Err(AppError::Clipboard("GlobalLock 调用失败".to_string()));
     }
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), target.cast::<u8>(), bytes.len());
     GlobalUnlock(handle);
@@ -1233,7 +1233,7 @@ fn get_clipboard_text() -> Result<String, AppError> {
     const CF_UNICODETEXT: u32 = 13;
     unsafe {
         if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return Err(AppError::Clipboard("OpenClipboard failed".to_string()));
+            return Err(AppError::Clipboard("打开剪贴板失败".to_string()));
         }
         let _guard = ClipboardGuard;
         if IsClipboardFormatAvailable(CF_UNICODETEXT) == 0 {
@@ -1246,7 +1246,7 @@ fn get_clipboard_text() -> Result<String, AppError> {
         let ptr = GlobalLock(handle.cast());
         if ptr.is_null() {
             return Err(AppError::Clipboard(
-                "GlobalLock clipboard text failed".to_string(),
+                "锁定剪贴板文本失败".to_string(),
             ));
         }
         let text_ptr = ptr.cast::<u16>();
@@ -1264,7 +1264,7 @@ fn get_clipboard_text() -> Result<String, AppError> {
 #[cfg(not(target_os = "windows"))]
 fn get_clipboard_text() -> Result<String, AppError> {
     Err(AppError::Clipboard(
-        "Text clipboard input is currently implemented for Windows only".to_string(),
+        "读取文本剪贴板目前仅支持 Windows".to_string(),
     ))
 }
 
@@ -1274,16 +1274,16 @@ fn set_clipboard_text(text: &str) -> Result<(), AppError> {
     let bytes = utf16le_clipboard_bytes(text);
     unsafe {
         if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return Err(AppError::Clipboard("OpenClipboard failed".to_string()));
+            return Err(AppError::Clipboard("打开剪贴板失败".to_string()));
         }
         let _guard = ClipboardGuard;
         if EmptyClipboard() == 0 {
-            return Err(AppError::Clipboard("EmptyClipboard failed".to_string()));
+            return Err(AppError::Clipboard("清空剪贴板失败".to_string()));
         }
         let handle = alloc_global_bytes(&bytes)?;
         if SetClipboardData(CF_UNICODETEXT, handle as HANDLE).is_null() {
             return Err(AppError::Clipboard(
-                "SetClipboardData(CF_UNICODETEXT) failed".to_string(),
+                "写入剪贴板文本失败".to_string(),
             ));
         }
         Ok(())
@@ -1293,7 +1293,7 @@ fn set_clipboard_text(text: &str) -> Result<(), AppError> {
 #[cfg(not(target_os = "windows"))]
 fn set_clipboard_text(_text: &str) -> Result<(), AppError> {
     Err(AppError::Clipboard(
-        "Text clipboard output is currently implemented for Windows only".to_string(),
+        "写入文本剪贴板目前仅支持 Windows".to_string(),
     ))
 }
 
@@ -1306,17 +1306,17 @@ fn copy_image_to_clipboard(img: &RgbaImage) -> Result<Vec<String>, AppError> {
 
     unsafe {
         if OpenClipboard(std::ptr::null_mut()) == 0 {
-            return Err(AppError::Clipboard("OpenClipboard failed".to_string()));
+            return Err(AppError::Clipboard("打开剪贴板失败".to_string()));
         }
         let _guard = ClipboardGuard;
         if EmptyClipboard() == 0 {
-            return Err(AppError::Clipboard("EmptyClipboard failed".to_string()));
+            return Err(AppError::Clipboard("清空剪贴板失败".to_string()));
         }
 
         let dib_handle = alloc_global_bytes(&dib)?;
         if SetClipboardData(CF_DIB, dib_handle as HANDLE).is_null() {
             return Err(AppError::Clipboard(
-                "SetClipboardData(CF_DIB) failed".to_string(),
+                "写入剪贴板图像失败".to_string(),
             ));
         }
         formats.push("CF_DIB".to_string());
@@ -1337,7 +1337,7 @@ fn copy_image_to_clipboard(img: &RgbaImage) -> Result<Vec<String>, AppError> {
 #[cfg(not(target_os = "windows"))]
 fn copy_image_to_clipboard(_img: &RgbaImage) -> Result<Vec<String>, AppError> {
     Err(AppError::Clipboard(
-        "Image clipboard output is currently implemented for Windows only".to_string(),
+        "写入图像剪贴板目前仅支持 Windows".to_string(),
     ))
 }
 
@@ -1604,7 +1604,7 @@ fn set_engine_portrait(
     let safe_name = Path::new(&filename)
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| AppError::InvalidInput("Invalid portrait filename".to_string()))?;
+        .ok_or_else(|| AppError::InvalidInput("立绘文件名无效".to_string()))?;
     let mut engine = lock_engine_state(&state)?;
     engine.current_portrait = Some(safe_name.to_string());
     if let Some(config) = engine.current_config.as_mut() {
@@ -1684,7 +1684,7 @@ fn send_ctrl_combo(vk: VIRTUAL_KEY) -> Result<(), AppError> {
     };
     if sent != inputs.len() as u32 {
         return Err(AppError::Clipboard(format!(
-            "SendInput sent {sent}/{} keyboard events",
+            "SendInput 只发送了 {sent}/{} 个键盘事件",
             inputs.len()
         )));
     }
@@ -1694,7 +1694,7 @@ fn send_ctrl_combo(vk: VIRTUAL_KEY) -> Result<(), AppError> {
 #[cfg(not(target_os = "windows"))]
 fn send_ctrl_combo(_vk: u16) -> Result<(), AppError> {
     Err(AppError::Clipboard(
-        "Keyboard automation is currently implemented for Windows only".to_string(),
+        "键盘自动化目前仅支持 Windows".to_string(),
     ))
 }
 
@@ -1726,16 +1726,16 @@ fn send_ctrl_v() -> Result<(), AppError> {
 #[cfg(not(target_os = "windows"))]
 fn send_ctrl_v() -> Result<(), AppError> {
     Err(AppError::Clipboard(
-        "Paste automation is currently implemented for Windows only".to_string(),
+        "自动粘贴目前仅支持 Windows".to_string(),
     ))
 }
 
 fn switch_engine_expression(state: &Mutex<EngineState>, index: usize) -> Result<(), AppError> {
     let mut engine = state
         .lock()
-        .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+        .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
     if !engine.running {
-        return Err(AppError::InvalidInput("Engine is not running".to_string()));
+        return Err(AppError::InvalidInput("引擎未运行".to_string()));
     }
     let Some(portrait) = index
         .checked_sub(1)
@@ -1757,7 +1757,7 @@ fn switch_engine_expression(state: &Mutex<EngineState>, index: usize) -> Result<
 fn toggle_engine_pause_state(state: &Mutex<EngineState>) -> Result<(), AppError> {
     let mut engine = state
         .lock()
-        .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+        .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
     if engine.running {
         engine.paused = !engine.paused;
         engine.last_action = Some(
@@ -1781,7 +1781,7 @@ fn reload_engine_config_and_hotkeys(
     let (id, previous_hotkey, previous_aux, selected_portrait) = {
         let engine = state
             .lock()
-            .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+            .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
         (
             engine.character_id.clone(),
             engine.registered_hotkey.clone(),
@@ -1816,7 +1816,7 @@ fn reload_engine_config_and_hotkeys(
 
     let mut engine = state
         .lock()
-        .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+        .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
     engine.trigger_hotkey = global.trigger_hotkey;
     engine.registered_hotkey = registered_hotkey;
     engine.registered_aux_hotkeys = registered_aux_hotkeys;
@@ -1839,7 +1839,7 @@ fn handle_engine_shortcut(
     let action = {
         let mut engine = state
             .lock()
-            .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+            .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
         engine.shortcut_hits = engine.shortcut_hits.saturating_add(1);
         classify_engine_shortcut(&engine, &shortcut)
     };
@@ -1860,7 +1860,7 @@ fn handle_engine_shortcut(
         EngineShortcutAction::Ignore => {
             let mut engine = state
                 .lock()
-                .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+                .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
             engine.last_action = Some(format!("shortcut_ignored:{shortcut}"));
         }
     }
@@ -1884,19 +1884,19 @@ fn run_engine_hotkey_pipeline(state: &Mutex<EngineState>) -> Result<RenderPrevie
     let (id, config, selected_portrait) = {
         let engine = state
             .lock()
-            .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+            .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
         if !engine.running {
-            return Err(AppError::InvalidInput("Engine is not running".to_string()));
+            return Err(AppError::InvalidInput("引擎未运行".to_string()));
         }
         if engine.paused {
-            return Err(AppError::InvalidInput("Engine is paused".to_string()));
+            return Err(AppError::InvalidInput("引擎已暂停".to_string()));
         }
         let id = engine
             .character_id
             .clone()
-            .ok_or_else(|| AppError::InvalidInput("Engine has no active character".to_string()))?;
+            .ok_or_else(|| AppError::InvalidInput("引擎没有活动角色".to_string()))?;
         let config = engine.current_config.clone().ok_or_else(|| {
-            AppError::InvalidInput("Engine has no active character config".to_string())
+            AppError::InvalidInput("引擎没有活动角色配置".to_string())
         })?;
         (id, config, engine.current_portrait.clone())
     };
@@ -1904,11 +1904,11 @@ fn run_engine_hotkey_pipeline(state: &Mutex<EngineState>) -> Result<RenderPrevie
     let Some(text) = capture_active_input_text()? else {
         let mut engine = state
             .lock()
-            .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+            .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
         engine.last_action = Some("capture_empty_restored".to_string());
         engine.last_error = None;
         return Err(AppError::InvalidInput(
-            "No text was captured from the active input".to_string(),
+            "未从当前输入框捕获到文本".to_string(),
         ));
     };
 
@@ -1918,7 +1918,7 @@ fn run_engine_hotkey_pipeline(state: &Mutex<EngineState>) -> Result<RenderPrevie
             let _ = set_clipboard_text(&text).and_then(|_| send_ctrl_v());
             let mut engine = state
                 .lock()
-                .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+                .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
             engine.last_captured_text = Some(text);
             engine.last_action = Some("render_failed_text_restored".to_string());
             engine.last_error = Some(error.to_string());
@@ -1933,7 +1933,7 @@ fn run_engine_hotkey_pipeline(state: &Mutex<EngineState>) -> Result<RenderPrevie
 
     let mut engine = state
         .lock()
-        .map_err(|_| AppError::InvalidInput("Engine state lock failed".to_string()))?;
+        .map_err(|_| AppError::InvalidInput("引擎状态锁定失败".to_string()))?;
     engine.last_output_path = Some(result.path.clone());
     engine.last_captured_text = Some(text);
     engine.last_action = Some("captured_rendered_copied_pasted".to_string());
@@ -1955,7 +1955,7 @@ fn copy_engine_output_to_clipboard(
     let path = {
         let engine = lock_engine_state(&state)?;
         engine.last_output_path.clone().ok_or_else(|| {
-            AppError::Clipboard("No engine output has been rendered yet".to_string())
+            AppError::Clipboard("还没有已渲染的引擎输出".to_string())
         })?
     };
     let img = load_rgba(&PathBuf::from(&path))?;
@@ -2044,7 +2044,7 @@ fn create_character(id: String, display_name: String) -> Result<CharacterBundle,
     let char_root = character_root(&root, &id);
     if char_root.exists() {
         return Err(AppError::InvalidInput(format!(
-            "Character already exists: {id}"
+            "角色已存在：{id}"
         )));
     }
     fs::create_dir_all(char_root.join("portrait"))?;
@@ -2085,14 +2085,14 @@ fn import_asset(
     let filename = source
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| AppError::InvalidInput("Cannot read asset filename".to_string()))?;
+        .ok_or_else(|| AppError::InvalidInput("无法读取素材文件名".to_string()))?;
     let ext = source
         .extension()
         .and_then(|ext| ext.to_str())
-        .ok_or_else(|| AppError::InvalidInput("Asset file is missing an extension".to_string()))?;
+        .ok_or_else(|| AppError::InvalidInput("素材文件缺少扩展名".to_string()))?;
     if !allowed_asset_extension(&kind, ext) {
         return Err(AppError::InvalidInput(format!(
-            "Unsupported asset extension: .{ext}"
+            "不支持的素材扩展名：.{ext}"
         )));
     }
 
@@ -2138,7 +2138,7 @@ fn delete_asset(
     let safe_name = Path::new(&filename)
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| AppError::InvalidInput("Invalid asset filename".to_string()))?;
+        .ok_or_else(|| AppError::InvalidInput("素材文件名无效".to_string()))?;
     let target = asset_folder(&char_root, &kind).join(safe_name);
     if !target.is_file() {
         return Err(AppError::AssetNotFound(target.display().to_string()));
@@ -2215,12 +2215,12 @@ fn build_cache(id: String, config: CharacterConfig) -> Result<BuildCacheResult, 
     let backgrounds = image_files(&char_root.join("background"));
     if portraits.is_empty() {
         return Err(AppError::AssetNotFound(
-            "No portrait assets found".to_string(),
+            "未找到立绘素材".to_string(),
         ));
     }
     if backgrounds.is_empty() {
         return Err(AppError::AssetNotFound(
-            "No background assets found".to_string(),
+            "未找到背景素材".to_string(),
         ));
     }
 
@@ -2356,7 +2356,7 @@ pub fn run() {
             paste_clipboard_to_active_window
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Tauri application");
+        .expect("运行 Tauri 应用时出错");
 }
 
 mod natord {

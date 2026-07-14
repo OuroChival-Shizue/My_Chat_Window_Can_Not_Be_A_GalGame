@@ -110,7 +110,7 @@ export async function createCharacter(id: string, displayName: string): Promise<
 
 
 export async function pickAssetFile(kind: AssetKind): Promise<string | null> {
-  if (!canInvoke) return window.prompt("Full local file path");
+  if (!canInvoke) return window.prompt("请输入本地文件完整路径");
   return invoke<string | null>("pick_asset_file", { kind });
 }
 

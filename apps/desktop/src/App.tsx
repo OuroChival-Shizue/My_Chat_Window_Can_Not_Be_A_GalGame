@@ -14,7 +14,7 @@ export function App() {
   const [activeId, setActiveId] = useState("");
   const [bundle, setBundle] = useState<CharacterBundle | null>(null);
   const [state, setState] = useState<LoadState>("idle");
-  const [message, setMessage] = useState("Booting GalGame Chat Studio...");
+  const [message, setMessage] = useState("正在启动 GalGame Chat Studio...");
   const [preview, setPreview] = useState<RenderPreviewResult | null>(null);
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
 
@@ -51,7 +51,7 @@ export function App() {
         if (cancelled) return;
         setBundle(character);
         setState("ready");
-        setMessage(`Loaded ${character.config.meta.name ?? character.id}`);
+        setMessage(`已加载 ${character.config.meta.name ?? character.id}`);
       } catch (error) {
         if (cancelled) return;
         setState("error");
@@ -115,7 +115,7 @@ export function App() {
       await refreshCharacterList(activeId);
       if (activeId) setBundle(await loadCharacter(activeId));
       setPreview(null);
-      setMessage("Workspace refreshed.");
+      setMessage("工作区已刷新。");
     });
   }
 
@@ -128,20 +128,20 @@ export function App() {
         setEngineStatus(await refreshEngineHotkey());
       }
       await refreshCharacterList(bundle.id);
-      setMessage("Config saved.");
+      setMessage("配置已保存。");
     });
   }
 
   async function handleCreateCharacter() {
-    const id = window.prompt("Character ID");
+    const id = window.prompt("角色 ID");
     if (!id) return;
-    const displayName = window.prompt("Display name", id) ?? id;
+    const displayName = window.prompt("显示名称", id) ?? id;
     await runTask(async () => {
       const created = await createCharacter(id, displayName);
       await refreshCharacterList(created.id);
       setActiveId(created.id);
       setBundle(created);
-      setMessage(`Created ${created.config.meta.name ?? created.id}.`);
+      setMessage(`已创建 ${created.config.meta.name ?? created.id}。`);
     });
   }
 
@@ -150,24 +150,24 @@ export function App() {
     await runTask(async () => {
       const sourcePath = await pickAssetFile(kind);
       if (!sourcePath) {
-        setMessage("Import cancelled.");
+        setMessage("已取消导入。");
         return;
       }
       const updated = await importAsset(bundle.id, kind, sourcePath);
       setBundle(updated);
       await refreshCharacterList(bundle.id);
-      setMessage("Asset imported.");
+      setMessage("素材已导入。");
     });
   }
 
   async function handleDeleteAsset(kind: AssetKind, filename: string) {
     if (!bundle) return;
-    if (!window.confirm(`Delete ${filename}?`)) return;
+    if (!window.confirm(`确定删除 ${filename} 吗？`)) return;
     await runTask(async () => {
       const updated = await deleteAsset(bundle.id, kind, filename);
       setBundle(updated);
       await refreshCharacterList(bundle.id);
-      setMessage("Asset deleted.");
+      setMessage("素材已删除。");
     });
   }
 
@@ -175,16 +175,16 @@ export function App() {
     if (!bundle) return;
     await runTask(async () => {
       await openCharacterFolder(bundle.id);
-      setMessage("Character folder opened.");
+      setMessage("已打开角色文件夹。");
     });
   }
 
   async function handlePreview() {
     if (!bundle) return;
     await runTask(async () => {
-      const result = await renderPreview(bundle.id, bundle.config, "Rust renderer preview text.");
+      const result = await renderPreview(bundle.id, bundle.config, "这是一段渲染预览文本。");
       setPreview(result);
-      setMessage(`Preview rendered: ${result.width} x ${result.height}`);
+      setMessage(`预览已渲染：${result.width} x ${result.height}`);
     });
   }
 
@@ -192,7 +192,7 @@ export function App() {
     if (!bundle) return;
     await runTask(async () => {
       const result = await buildCache(bundle.id, bundle.config);
-      setMessage(`Cache built: ${result.generated} ${result.format} images -> ${result.cache_dir}`);
+      setMessage(`缓存已生成：${result.generated} 张 ${result.format} 图片 -> ${result.cache_dir}`);
     });
   }
 
@@ -201,7 +201,7 @@ export function App() {
     await runTask(async () => {
       const status = await startEngine(bundle.id, bundle.config);
       setEngineStatus(status);
-      setMessage(`Engine running for ${bundle.config.meta.name ?? bundle.id} (${status.trigger_hotkey}).`);
+      setMessage(`引擎已为 ${bundle.config.meta.name ?? bundle.id} 启动（${status.trigger_hotkey}）。`);
     });
   }
 
@@ -209,7 +209,7 @@ export function App() {
     await runTask(async () => {
       const status = await stopEngine();
       setEngineStatus(status);
-      setMessage("Engine stopped.");
+      setMessage("引擎已停止。");
     });
   }
 
@@ -217,13 +217,13 @@ export function App() {
     await runTask(async () => {
       const status = await toggleEnginePause();
       setEngineStatus(status);
-      setMessage(status.paused ? "Engine paused." : "Engine resumed.");
+      setMessage(status.paused ? "引擎已暂停。" : "引擎已恢复。");
     });
   }
 
   async function handleRenderEngineText() {
     if (!bundle) return;
-    const text = window.prompt("Dialogue text", "Rust engine render text.");
+    const text = window.prompt("对话文本", "这是一段引擎渲染测试文本。");
     if (!text) return;
     await runTask(async () => {
       if (bundle.config.layout.current_portrait) {
@@ -233,9 +233,9 @@ export function App() {
       setPreview(result);
       try {
         const copied = await copyEngineOutputToClipboard();
-        setMessage(`Engine rendered and copied: ${copied.width} x ${copied.height} (${copied.formats.join(", ")})`);
+        setMessage(`引擎已渲染并复制：${copied.width} x ${copied.height}（${copied.formats.join(", ")}）`);
       } catch (error) {
-        setMessage(`Engine rendered, clipboard failed: ${toMessage(error)}`);
+        setMessage(`引擎已渲染，但写入剪贴板失败：${toMessage(error)}`);
       }
       setEngineStatus(await loadEngineStatus());
     });
@@ -244,7 +244,7 @@ export function App() {
   async function handleCopyEngineOutput() {
     await runTask(async () => {
       const copied = await copyEngineOutputToClipboard();
-      setMessage(`Copied engine output: ${copied.width} x ${copied.height} (${copied.formats.join(", ")})`);
+      setMessage(`已复制引擎输出：${copied.width} x ${copied.height}（${copied.formats.join(", ")}）`);
     });
   }
 
@@ -253,7 +253,7 @@ export function App() {
       <CommandBar disabled={!bundle} engineStatus={engineStatus} onBuildCache={handleBuildCache} onCopyOutput={handleCopyEngineOutput} onCreate={handleCreateCharacter} onEngineText={handleRenderEngineText} onOpenFolder={handleOpenFolder} onPauseEngine={handleTogglePause} onPreview={handlePreview} onReload={handleReload} onSave={handleSave} onStartEngine={handleStartEngine} onStopEngine={handleStopEngine} />
       <div className="grid min-h-0 flex-1 grid-cols-[280px_1fr_360px] border-t border-border">
         <aside className="flex min-h-0 flex-col border-r border-border bg-muted/35">
-          <SectionTitle title="Characters" />
+          <SectionTitle title="角色" />
           <div className="flex-1 overflow-auto p-2">
             {characters.map((character) => (
               <button
@@ -269,15 +269,15 @@ export function App() {
               </button>
             ))}
           </div>
-          <SectionTitle title="Assets" />
-          <AssetList title="Portraits" kind="portrait" items={bundle?.portraits ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
-          <AssetList title="Backgrounds" kind="background" items={bundle?.backgrounds ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
-          <AssetList title="Fonts" kind="font" items={bundle?.fonts ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
+          <SectionTitle title="素材" />
+          <AssetList title="立绘" kind="portrait" items={bundle?.portraits ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
+          <AssetList title="背景" kind="background" items={bundle?.backgrounds ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
+          <AssetList title="字体" kind="font" items={bundle?.fonts ?? []} onImport={handleImportAsset} onDelete={handleDeleteAsset} />
         </aside>
 
         <section className="flex min-h-0 flex-col bg-[#f4f6f8]">
           <div className="flex h-10 items-center justify-between border-b border-border bg-background px-4 text-sm">
-            <span className="font-medium">Canvas</span>
+            <span className="font-medium">画布</span>
             <span className="text-muted-foreground">{canvasSize[0]} x {canvasSize[1]} / {Math.round(stageScale * 100)}%</span>
           </div>
           <div className="flex flex-1 items-center justify-center overflow-auto p-6">
@@ -289,7 +289,7 @@ export function App() {
       </div>
       <footer className="flex h-8 items-center justify-between border-t border-border bg-background px-3 text-xs text-muted-foreground">
         <span className="truncate">{message}</span>
-        <span>{state === "loading" ? "Loading" : "Ready"}</span>
+        <span>{state === "loading" ? "加载中" : "就绪"}</span>
       </footer>
     </main>
   );
@@ -326,12 +326,12 @@ function CommandBar({
 }) {
   const running = engineStatus?.running ?? false;
   const paused = engineStatus?.paused ?? false;
-  const engineLabel = running ? (paused ? "Paused" : "Running") : "Stopped";
+  const engineLabel = running ? (paused ? "已暂停" : "运行中") : "已停止";
   const hasOutput = Boolean(engineStatus?.last_output_path);
   const hotkey = engineStatus?.registered_hotkey ?? engineStatus?.trigger_hotkey ?? "";
   const capturedLength = engineStatus?.last_captured_text?.length ?? 0;
-  const statusDetail = engineStatus?.last_error ?? engineStatus?.last_action ?? "";
-  const expressionInfo = engineStatus?.expression_count ? `${engineStatus.current_portrait ?? "auto"} / ${engineStatus.expression_count}` : "";
+  const statusDetail = engineStatus?.last_error ?? formatEngineAction(engineStatus?.last_action) ?? "";
+  const expressionInfo = engineStatus?.expression_count ? `${engineStatus.current_portrait ?? "自动"} / ${engineStatus.expression_count}` : "";
   const auxHotkeys = engineStatus?.registered_aux_hotkeys?.join(", ") ?? "";
   return (
     <header className="flex h-12 items-center justify-between bg-background px-3">
@@ -341,28 +341,28 @@ function CommandBar({
         </div>
         <div>
           <h1 className="text-sm font-semibold">GalGame Chat Studio</h1>
-          <p className="text-xs text-muted-foreground">Tauri migration workbench</p>
+          <p className="text-xs text-muted-foreground">Tauri 重构工作台</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
         <span className={`rounded-md px-2 py-1 text-xs font-medium ${running ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"}`}>{engineLabel}</span>
-        {hotkey ? <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title={auxHotkeys ? `Aux: ${auxHotkeys}` : undefined}>{hotkey} / {engineStatus?.shortcut_hits ?? 0}</span> : null}
+        {hotkey ? <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title={auxHotkeys ? `辅助热键：${auxHotkeys}` : undefined}>{hotkey} / {engineStatus?.shortcut_hits ?? 0}</span> : null}
         {expressionInfo ? <span className="max-w-[160px] truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title={expressionInfo}>{expressionInfo}</span> : null}
-        {statusDetail ? <span className="max-w-[220px] truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title={statusDetail}>{statusDetail}{capturedLength ? ` / ${capturedLength} chars` : ""}</span> : null}
+        {statusDetail ? <span className="max-w-[220px] truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title={statusDetail}>{statusDetail}{capturedLength ? ` / ${capturedLength} 字` : ""}</span> : null}
         <div className="flex items-center gap-1 border-r border-border pr-2">
-          <ToolbarButton icon={<Play size={16} />} label="Start" disabled={disabled || running} onClick={onStartEngine} />
-          <ToolbarButton icon={<Pause size={16} />} label={paused ? "Resume" : "Pause"} disabled={!running} onClick={onPauseEngine} />
-          <ToolbarButton icon={<Square size={15} />} label="Stop" disabled={!running} onClick={onStopEngine} />
-          <ToolbarButton icon={<MessageSquareText size={16} />} label="Text" disabled={disabled} onClick={onEngineText} />
-          <ToolbarButton icon={<ClipboardCopy size={16} />} label="Copy" disabled={!hasOutput} onClick={onCopyOutput} />
+          <ToolbarButton icon={<Play size={16} />} label="启动" disabled={disabled || running} onClick={onStartEngine} />
+          <ToolbarButton icon={<Pause size={16} />} label={paused ? "恢复" : "暂停"} disabled={!running} onClick={onPauseEngine} />
+          <ToolbarButton icon={<Square size={15} />} label="停止" disabled={!running} onClick={onStopEngine} />
+          <ToolbarButton icon={<MessageSquareText size={16} />} label="文本" disabled={disabled} onClick={onEngineText} />
+          <ToolbarButton icon={<ClipboardCopy size={16} />} label="复制" disabled={!hasOutput} onClick={onCopyOutput} />
         </div>
         <div className="flex items-center gap-1">
-          <ToolbarButton icon={<Plus size={16} />} label="New" onClick={onCreate} />
-          <ToolbarButton icon={<FolderOpen size={16} />} label="Folder" disabled={disabled} onClick={onOpenFolder} />
-          <ToolbarButton icon={<RefreshCw size={16} />} label="Reload" onClick={onReload} />
-          <ToolbarButton icon={<Play size={16} />} label="Preview" disabled={disabled} onClick={onPreview} />
-          <ToolbarButton icon={<Save size={16} />} label="Save" disabled={disabled} onClick={onSave} />
-          <ToolbarButton icon={<Database size={16} />} label="Cache" disabled={disabled} onClick={onBuildCache} />
+          <ToolbarButton icon={<Plus size={16} />} label="新建" onClick={onCreate} />
+          <ToolbarButton icon={<FolderOpen size={16} />} label="文件夹" disabled={disabled} onClick={onOpenFolder} />
+          <ToolbarButton icon={<RefreshCw size={16} />} label="刷新" onClick={onReload} />
+          <ToolbarButton icon={<Play size={16} />} label="预览" disabled={disabled} onClick={onPreview} />
+          <ToolbarButton icon={<Save size={16} />} label="保存" disabled={disabled} onClick={onSave} />
+          <ToolbarButton icon={<Database size={16} />} label="缓存" disabled={disabled} onClick={onBuildCache} />
         </div>
       </div>
     </header>
@@ -382,15 +382,15 @@ function AssetList({ title, kind, items, onImport, onDelete }: { title: string; 
     <div className="max-h-44 overflow-auto p-2">
       <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
         <span>{title}</span>
-        <button className="rounded p-1 hover:bg-accent" onClick={() => onImport(kind)} title={`Import ${title}`}><Upload size={14} /></button>
+        <button className="rounded p-1 hover:bg-accent" onClick={() => onImport(kind)} title={`导入${title}`}><Upload size={14} /></button>
       </div>
       {items.map((item) => (
         <div key={item} className="group mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent/60">
           <span className="min-w-0 flex-1 truncate">{item}</span>
-          <button className="rounded p-1 opacity-0 hover:bg-background group-hover:opacity-100" onClick={() => onDelete(kind, item)} title="Delete asset"><Trash2 size={13} /></button>
+          <button className="rounded p-1 opacity-0 hover:bg-background group-hover:opacity-100" onClick={() => onDelete(kind, item)} title="删除素材"><Trash2 size={13} /></button>
         </div>
       ))}
-      {!items.length && <div className="px-2 py-3 text-xs text-muted-foreground">No assets</div>}
+      {!items.length && <div className="px-2 py-3 text-xs text-muted-foreground">暂无素材</div>}
     </div>
   );
 }
@@ -400,20 +400,20 @@ function PreviewPane({ preview, onBack }: { preview: RenderPreviewResult; onBack
   return (
     <div className="flex max-h-full max-w-full flex-col items-center gap-3">
       <div className="flex w-full items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm">
-        <span className="text-muted-foreground">Rust preview - {preview.width} x {preview.height}</span>
-        <button className="rounded-md px-3 py-1.5 text-sm hover:bg-accent" onClick={onBack}>Back to editor</button>
+        <span className="text-muted-foreground">Rust 预览 - {preview.width} x {preview.height}</span>
+        <button className="rounded-md px-3 py-1.5 text-sm hover:bg-accent" onClick={onBack}>返回编辑</button>
       </div>
       {preview.url ? (
-        <img className="max-h-[calc(100vh-180px)] max-w-full object-contain shadow-[0_18px_50px_rgba(15,23,42,0.18)]" src={preview.url} alt="Rendered preview" />
+        <img className="max-h-[calc(100vh-180px)] max-w-full object-contain shadow-[0_18px_50px_rgba(15,23,42,0.18)]" src={preview.url} alt="渲染预览" />
       ) : (
-        <div className="rounded-md border border-border bg-background px-4 py-6 text-sm text-muted-foreground">Preview is available only inside Tauri.</div>
+        <div className="rounded-md border border-border bg-background px-4 py-6 text-sm text-muted-foreground">预览只在 Tauri 应用内可用。</div>
       )}
     </div>
   );
 }
 
 function CanvasEditor({ bundle, scale, onChange }: { bundle: CharacterBundle | null; scale: number; onChange: (bundle: CharacterBundle) => void }) {
-  if (!bundle) return <div className="text-sm text-muted-foreground">Select a character to edit.</div>;
+  if (!bundle) return <div className="text-sm text-muted-foreground">请选择一个角色开始编辑。</div>;
   const current = bundle;
 
   const layout = current.config.layout;
@@ -463,7 +463,7 @@ function CanvasEditor({ bundle, scale, onChange }: { bundle: CharacterBundle | n
               patchLayout({ stand_scale: round(clamp(layout.stand_scale + delta, 0.1, 3), 3) });
             }}
           />
-          <Text x={layout.stand_pos[0] + 12} y={layout.stand_pos[1] + 12} text="portrait" fontSize={18} fill="#0e7490" />
+          <Text x={layout.stand_pos[0] + 12} y={layout.stand_pos[1] + 12} text="立绘" fontSize={18} fill="#0e7490" />
           <Text
             x={layout.name_pos[0]}
             y={layout.name_pos[1]}
@@ -494,7 +494,7 @@ function CanvasEditor({ bundle, scale, onChange }: { bundle: CharacterBundle | n
             draggable
             onDragEnd={(event: any) => patchLayout({ text_area: resizeRect(textArea, event.target.x() + 10, event.target.y() + 10) })}
           />
-          <Text x={textArea[0] + 8} y={textArea[1] + 8} text="Preview dialogue text" fontSize={current.config.style.basic.font_size} fill="white" />
+          <Text x={textArea[0] + 8} y={textArea[1] + 8} text="对话预览文本" fontSize={current.config.style.basic.font_size} fill="white" />
           {layout.enable_crop ? (
             <>
               <Rect
@@ -527,7 +527,7 @@ function CanvasEditor({ bundle, scale, onChange }: { bundle: CharacterBundle | n
 }
 
 function Inspector({ bundle, globalConfig, onChange, onGlobalChange, onImport }: { bundle: CharacterBundle | null; globalConfig: GlobalConfig | null; onChange: (bundle: CharacterBundle) => void; onGlobalChange: (config: GlobalConfig) => void; onImport: (kind: AssetKind) => void }) {
-  if (!bundle) return <aside className="border-l border-border bg-background p-4 text-sm text-muted-foreground">No character loaded.</aside>;
+  if (!bundle) return <aside className="border-l border-border bg-background p-4 text-sm text-muted-foreground">未加载角色。</aside>;
   const current = bundle;
 
   const config = current.config;
@@ -543,62 +543,62 @@ function Inspector({ bundle, globalConfig, onChange, onGlobalChange, onImport }:
 
   return (
     <aside className="min-h-0 overflow-auto border-l border-border bg-background">
-      <SectionTitle title="Inspector" />
+      <SectionTitle title="检查器" />
       <div className="space-y-5 p-4">
-        <Field label="Display name">
+        <Field label="显示名称">
           <input className="input" value={config.meta.name ?? ""} onChange={(event) => patchConfig({ meta: { ...config.meta, name: event.target.value } })} />
         </Field>
-        <Field label="Trigger hotkey">
+        <Field label="触发热键">
           <input className="input" value={globalConfig?.trigger_hotkey ?? ""} onChange={(event) => globalConfig && onGlobalChange({ ...globalConfig, trigger_hotkey: event.target.value })} />
         </Field>
-        <Field label="Text size">
+        <Field label="正文大小">
           <NumberInput value={config.style.basic.font_size} min={1} onChange={(value) => patchConfig({ style: { ...config.style, basic: { ...config.style.basic, font_size: value } } })} />
         </Field>
-        <Field label="Text wrapper">
+        <Field label="台词括号">
           <select
             className="input"
             value={config.style.text_wrapper.preset}
             onChange={(event) => patchConfig({ style: { ...config.style, text_wrapper: wrapperForPreset(event.target.value) } })}
           >
-            <option value="corner_single">corner single</option>
-            <option value="corner_double">corner double</option>
+            <option value="corner_single">单层括号「」</option>
+            <option value="corner_double">双层括号『』</option>
           </select>
         </Field>
-        <Field label="Current portrait">
+        <Field label="当前立绘">
           <select className="input" value={layout.current_portrait} onChange={(event) => patchLayout({ current_portrait: event.target.value })}>
-            <option value="">Auto</option>
+            <option value="">自动</option>
             {current.portraits.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </Field>
-        <Field label="Current background">
+        <Field label="当前背景">
           <select className="input" value={layout.current_background} onChange={(event) => patchLayout({ current_background: event.target.value })}>
-            <option value="">Auto</option>
+            <option value="">自动</option>
             {current.backgrounds.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </Field>
-        <Field label="Portrait position">
+        <Field label="立绘位置">
           <PointInput value={layout.stand_pos} onChange={(value) => patchLayout({ stand_pos: value })} />
         </Field>
-        <Field label="Portrait scale">
+        <Field label="立绘缩放">
           <NumberInput value={layout.stand_scale} min={0.1} step={0.01} onChange={(value) => patchLayout({ stand_scale: value })} />
         </Field>
-        <Field label="Name position">
+        <Field label="名称位置">
           <PointInput value={layout.name_pos} onChange={(value) => patchLayout({ name_pos: value })} />
         </Field>
-        <Field label="Text area">
+        <Field label="正文区域">
           <RectInput value={layout.text_area} onChange={(value) => patchLayout({ text_area: value })} />
         </Field>
-        <Field label="Crop">
+        <Field label="裁剪">
           <label className="mb-2 flex items-center gap-2 text-sm">
             <input type="checkbox" checked={layout.enable_crop} onChange={(event) => patchLayout({ enable_crop: event.target.checked, crop_area: layout.crop_area ?? [0, 0, layout._canvas_size[0], layout._canvas_size[1]] })} />
-            Enabled
+            启用
           </label>
           {layout.enable_crop ? <RectInput value={layout.crop_area ?? [0, 0, layout._canvas_size[0], layout._canvas_size[1]]} onChange={(value) => patchLayout({ crop_area: value })} /> : null}
         </Field>
-        <Field label="Dialog box">
+        <Field label="对话框">
           <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-            <span className="min-w-0 truncate">{current.dialog_box_exists ? config.assets.dialog_box : "missing"}</span>
-            <button className="rounded p-1 hover:bg-accent" onClick={() => onImport("dialog_box")} title="Import dialog box"><Upload size={14} /></button>
+            <span className="min-w-0 truncate">{current.dialog_box_exists ? config.assets.dialog_box : "缺失"}</span>
+            <button className="rounded p-1 hover:bg-accent" onClick={() => onImport("dialog_box")} title="导入对话框"><Upload size={14} /></button>
           </div>
         </Field>
       </div>
@@ -623,7 +623,31 @@ function RectInput({ value, onChange }: { value: Rect4; onChange: (value: Rect4)
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return <div className="flex max-w-md items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900"><CircleAlert className="mt-0.5 shrink-0" size={18} /><div><strong className="block">Load failed</strong><span>{message}</span></div></div>;
+  return <div className="flex max-w-md items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900"><CircleAlert className="mt-0.5 shrink-0" size={18} /><div><strong className="block">加载失败</strong><span>{message}</span></div></div>;
+}
+
+function formatEngineAction(action?: string) {
+  if (!action) return "";
+  if (action.startsWith("expression_set:")) return `已设置表情：${action.slice("expression_set:".length)}`;
+  if (action.startsWith("expression_switched:")) {
+    const parts = action.split(":");
+    return `已切换到第 ${parts[1] ?? "?"} 张立绘${parts[2] ? `：${parts[2]}` : ""}`;
+  }
+  if (action.startsWith("expression_out_of_range:")) return `表情序号超出范围：${action.slice("expression_out_of_range:".length)}`;
+  if (action.startsWith("shortcut_ignored:")) return `已忽略快捷键：${action.slice("shortcut_ignored:".length)}`;
+  const labels: Record<string, string> = {
+    engine_started: "引擎已启动",
+    engine_stopped: "引擎已停止",
+    manual_render: "已手动渲染",
+    engine_paused: "引擎已暂停",
+    engine_resumed: "引擎已恢复",
+    config_reloaded: "配置已重载",
+    capture_empty_restored: "未捕获到文本，已还原输入",
+    render_failed_text_restored: "渲染失败，已还原文本",
+    captured_rendered_copied_pasted: "已捕获、渲染、复制并粘贴",
+    demo_run: "演示运行",
+  };
+  return labels[action] ?? action;
 }
 
 function normalizeRect(rect: Rect4, width: number, height: number): Rect4 {
